@@ -40,6 +40,8 @@ Four FreeRTOS tasks own the runtime work.
 
 ## Event bus and threading
 
+![The producer tasks publish to the event bus, which delivers to the single UI task that owns LVGL and drives the display. The UI task submits outgoing frames back to the radio task.](../../../assets/architecture-tasks.svg)
+
 A small synchronous event bus carries events such as `EV_MESSAGE_RECEIVED` and
 `EV_MESH_NODE_UPDATE`. Handlers run on the publisher's stack, so they stay short and never
 call LVGL.

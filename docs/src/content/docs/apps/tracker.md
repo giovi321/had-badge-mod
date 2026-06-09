@@ -4,8 +4,8 @@ description: Follow a live Meshtastic node, like a GPS tracker, on a compass.
 ---
 
 Tracker points a compass needle at another Meshtastic node and shows what that node
-transmits. It is meant for following a moving node, for example a GPS tracker, a vehicle, or
-another person's badge, as long as that node broadcasts its position.
+transmits. Use it to follow a moving node, say a GPS tracker or someone else's badge, as long as that
+node broadcasts its position.
 
 This is different from Follow. Follow walks you back along a track you recorded yourself.
 Tracker aims at a live node whose position arrives over the mesh and updates as new packets

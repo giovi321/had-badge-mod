@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 520" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="0.9" fill="rgba(11,13,11,0.10)"/>
+    </pattern>
+    <marker id="arrow" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#52534e"/>
+    </marker>
+  </defs>
+
+  <rect width="720" height="520" fill="#f5f4ed"/>
+  <rect width="720" height="520" fill="url(#dots)" opacity="0.6"/>
+
+  <!-- arrows first (z-order behind nodes) -->
+  <!-- producers -> bus -->
+  <line x1="150" y1="128" x2="312" y2="200" stroke="#52534e" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="570" y1="128" x2="408" y2="200" stroke="#52534e" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <line x1="212" y1="228" x2="296" y2="228" stroke="#52534e" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <!-- bus -> ui -->
+  <line x1="360" y1="256" x2="360" y2="316" stroke="#52534e" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <!-- ui -> display -->
+  <line x1="360" y1="376" x2="360" y2="400" stroke="#52534e" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <!-- ui -> radio TX (dashed elbow, around the right) -->
+  <path d="M 432 344 H 472 V 100 H 504" fill="none" stroke="#52534e" stroke-width="1.2"
+        stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+
+  <!-- arrow labels (masked) -->
+  <rect x="476" y="150" width="22" height="12" rx="2" fill="#f5f4ed"/>
+  <text x="487" y="159" fill="#65655c" font-size="8" font-family="ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.06em">RX</text>
+  <rect x="332" y="280" width="56" height="12" rx="2" fill="#f5f4ed"/>
+  <text x="360" y="289" fill="#65655c" font-size="8" font-family="ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.06em">DELIVER</text>
+  <rect x="338" y="382" width="44" height="12" rx="2" fill="#f5f4ed"/>
+  <text x="360" y="391" fill="#65655c" font-size="8" font-family="ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.06em">FLUSH</text>
+  <rect x="460" y="216" width="24" height="12" rx="2" fill="#f5f4ed"/>
+  <text x="472" y="225" fill="#65655c" font-size="8" font-family="ui-monospace, Menlo, monospace" text-anchor="middle" letter-spacing="0.06em">TX</text>
+
+  <!-- nodes -->
+  <!-- Input task -->
+  <rect x="72" y="72" width="140" height="56" rx="6" fill="#f5f4ed"/>
+  <rect x="72" y="72" width="140" height="56" rx="6" fill="#ffffff" stroke="#1c1917" stroke-width="1"/>
+  <text x="142" y="100" fill="#1c1917" font-size="13" font-weight="600" text-anchor="middle">Input task</text>
+  <text x="142" y="116" fill="#52534e" font-size="9" font-family="ui-monospace, Menlo, monospace" text-anchor="middle">TCA8418 INT</text>
+
+  <!-- Radio task -->
+  <rect x="508" y="72" width="140" height="56" rx="6" fill="#f5f4ed"/>
+  <rect x="508" y="72" width="140" height="56" rx="6" fill="#ffffff" stroke="#1c1917" stroke-width="1"/>
+  <text x="578" y="100" fill="#1c1917" font-size="13" font-weight="600" text-anchor="middle">Radio task</text>
+  <text x="578" y="116" fill="#52534e" font-size="9" font-family="ui-monospace, Menlo, monospace" text-anchor="middle">SX1262 DIO1</text>
+
+  <!-- Housekeeping task -->
+  <rect x="72" y="200" width="140" height="56" rx="6" fill="#f5f4ed"/>
+  <rect x="72" y="200" width="140" height="56" rx="6" fill="#ffffff" stroke="#1c1917" stroke-width="1"/>
+  <text x="142" y="224" fill="#1c1917" font-size="13" font-weight="600" text-anchor="middle">Housekeeping</text>
+  <text x="142" y="240" fill="#52534e" font-size="9" font-family="ui-monospace, Menlo, monospace" text-anchor="middle">timers, GPS, batt</text>
+
+  <!-- Event bus (focal) -->
+  <rect x="300" y="200" width="120" height="56" rx="6" fill="#f5f4ed"/>
+  <rect x="300" y="200" width="120" height="56" rx="6" fill="#fbeccb" stroke="#E39810" stroke-width="1.4"/>
+  <text x="360" y="224" fill="#1c1917" font-size="13" font-weight="600" text-anchor="middle">Event bus</text>
+  <text x="360" y="240" fill="#6b5310" font-size="9" font-family="ui-monospace, Menlo, monospace" text-anchor="middle">decouples</text>
+
+  <!-- UI task (focal) -->
+  <rect x="288" y="320" width="144" height="56" rx="6" fill="#f5f4ed"/>
+  <rect x="288" y="320" width="144" height="56" rx="6" fill="#fbeccb" stroke="#E39810" stroke-width="1.4"/>
+  <text x="360" y="344" fill="#1c1917" font-size="13" font-weight="600" text-anchor="middle">UI task</text>
+  <text x="360" y="360" fill="#6b5310" font-size="9" font-family="ui-monospace, Menlo, monospace" text-anchor="middle">owns LVGL</text>
+
+  <!-- Display -->
+  <rect x="288" y="400" width="144" height="44" rx="6" fill="#f5f4ed"/>
+  <rect x="288" y="400" width="144" height="44" rx="6" fill="rgba(28,25,23,0.05)" stroke="#52534e" stroke-width="1"/>
+  <text x="360" y="420" fill="#1c1917" font-size="13" font-weight="600" text-anchor="middle">Display</text>
+  <text x="360" y="436" fill="#52534e" font-size="9" font-family="ui-monospace, Menlo, monospace" text-anchor="middle">NV3007 TFT</text>
+
+  <!-- legend -->
+  <line x1="32" y1="472" x2="688" y2="472" stroke="rgba(11,13,11,0.12)" stroke-width="0.8"/>
+  <text x="32" y="492" fill="#52534e" font-size="8" font-family="ui-monospace, Menlo, monospace" letter-spacing="0.14em">FLOW</text>
+  <line x1="92" y1="489" x2="120" y2="489" stroke="#52534e" stroke-width="1.2" marker-end="url(#arrow)"/>
+  <text x="128" y="492" fill="#52534e" font-size="9" font-family="ui-monospace, Menlo, monospace">publish / deliver</text>
+  <line x1="300" y1="489" x2="328" y2="489" stroke="#52534e" stroke-width="1.2" stroke-dasharray="5,4" marker-end="url(#arrow)"/>
+  <text x="336" y="492" fill="#52534e" font-size="9" font-family="ui-monospace, Menlo, monospace">transmit submit</text>
+  <rect x="500" y="484" width="12" height="10" rx="2" fill="#fbeccb" stroke="#E39810" stroke-width="1.2"/>
+  <text x="520" y="492" fill="#52534e" font-size="9" font-family="ui-monospace, Menlo, monospace">hub + sole LVGL owner</text>
+</svg>
