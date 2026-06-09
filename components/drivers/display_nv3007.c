@@ -26,8 +26,10 @@ static lv_display_t *s_disp;
 static esp_lcd_panel_io_handle_t s_io;
 static esp_timer_handle_t s_tick_timer;
 
-/* LVGL renders the logical 428x142 frame; partial buffers ~1/8 screen each. */
-#define DRAW_LINES   40
+/* LVGL renders the logical 428x142 frame in horizontal strips. Small strips keep
+ * each draw buffer well under the contiguous internal DMA RAM left after the BT
+ * stack and LVGL's own pool have taken their share. */
+#define DRAW_LINES   16
 #define BUF_PX       (SCREEN_LOGICAL_W * DRAW_LINES)
 #define SCREEN_LOGICAL_W 428
 
@@ -124,10 +126,23 @@ esp_err_t display_init(void)
     lv_nv3007_set_gap(s_disp, LCD_OFFSET_X, LCD_OFFSET_Y);
     lv_display_set_rotation(s_disp, LV_DISPLAY_ROTATION_90);
 
-    /* 5. Two partial draw buffers in internal DMA-capable RAM. */
+    /* 5. Two partial draw buffers. Prefer internal DMA RAM; if it is too tight
+     * (BT stack plus LVGL pool eat most of it), fall back to PSRAM, which the
+     * S3 can still DMA from over SPI. The log shows what was available. */
     size_t buf_bytes = BUF_PX * 2;
+    ESP_LOGI(TAG, "draw bufs %u B each; DMA-internal free %u, largest block %u",
+             (unsigned)buf_bytes,
+             (unsigned)heap_caps_get_free_size(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL),
+             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
     void *b1 = heap_caps_malloc(buf_bytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
     void *b2 = heap_caps_malloc(buf_bytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
+    if (!b1 || !b2) {
+        heap_caps_free(b1);
+        heap_caps_free(b2);
+        ESP_LOGW(TAG, "internal DMA buffers unavailable; using PSRAM");
+        b1 = heap_caps_malloc(buf_bytes, MALLOC_CAP_SPIRAM);
+        b2 = heap_caps_malloc(buf_bytes, MALLOC_CAP_SPIRAM);
+    }
     if (!b1 || !b2) { ESP_LOGE(TAG, "draw buffer alloc"); return ESP_ERR_NO_MEM; }
     lv_display_set_buffers(s_disp, b1, b2, buf_bytes, LV_DISPLAY_RENDER_MODE_PARTIAL);
 
