@@ -9,6 +9,7 @@
 
 #include <string.h>
 #include "esp_log.h"
+#include "esp_bt.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
@@ -316,6 +317,19 @@ static void host_task(void *param)
 static const setting_t BLE_SCHEMA[] = {
     {.key = "ble_enabled", .type = SET_BOOL, .def = "false", .label = "Bluetooth (Meshtastic app)", .group = "Bluetooth"},
 };
+
+void ble_prepare(settings_t *reg)
+{
+    s_reg = reg;
+    settings_register_many(reg, BLE_SCHEMA, 1);
+    if (!settings_get_bool(reg, "ble_enabled")) {
+        /* Bluetooth is compiled in but unused. Hand the BT controller's reserved
+         * internal RAM back to the heap, or the LVGL draw buffers cannot allocate.
+         * Must run before the display init and before any esp_bt_controller_init. */
+        esp_bt_mem_release(ESP_BT_MODE_BTDM);
+        ESP_LOGI(TAG, "BLE off; released BT controller RAM");
+    }
+}
 
 void ble_init(settings_t *reg, const char *device_short_name)
 {

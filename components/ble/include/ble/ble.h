@@ -9,6 +9,11 @@
 
 #include "core/settings.h"
 
+/* Call once early, before the display initialises. Registers the ble_enabled
+ * setting and, when BLE is off, releases the Bluetooth controller's reserved
+ * internal RAM back to the heap so the display draw buffers can allocate. */
+void ble_prepare(settings_t *reg);
+
 /* Register the ble_enabled setting, and start the BLE stack if it is on. */
 void ble_init(settings_t *reg, const char *device_short_name);
 

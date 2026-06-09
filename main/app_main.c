@@ -62,6 +62,10 @@ void app_main(void)
     net_register_settings(&s_settings);   /* radio/device schema */
     power_register_settings(&s_settings); /* backlight/power schema */
 
+    /* Reclaim Bluetooth controller RAM before the display allocates its buffers,
+     * unless BLE is enabled. Bluetooth is compiled in but off by default. */
+    ble_prepare(&s_settings);
+
     /* 2. Display + theme + persistent chrome (sidebar + full-width bottom bar). */
     if (display_init() != ESP_OK) ESP_LOGE(TAG, "display init failed");
     theme_init();
