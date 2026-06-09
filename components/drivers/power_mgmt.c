@@ -16,18 +16,19 @@ static const char *TAG = "power";
 void power_init(void)
 {
 #if CONFIG_PM_ENABLE
+    /* DFS only for now. Light sleep needs level-triggered GPIO wakeup on the
+     * keyboard INT / radio DIO1 pins, which changes those pins' interrupt type
+     * to level-triggered and collides with their edge ISRs (DIO1 going high
+     * storms the GPIO interrupt -> INT_WDT). DFS still scales 80<->240 MHz for
+     * a real power win; proper light sleep is a later refinement. */
     esp_pm_config_t pm = {
         .max_freq_mhz = 240,
         .min_freq_mhz = 80,
-        .light_sleep_enable = true,
+        .light_sleep_enable = false,
     };
     if (esp_pm_configure(&pm) == ESP_OK)
-        ESP_LOGI(TAG, "DFS + light sleep enabled (80-240 MHz)");
+        ESP_LOGI(TAG, "DFS enabled (80-240 MHz); light sleep off");
 #endif
-    /* Wake from light sleep on keyboard INT (active low) and radio DIO1 (rising). */
-    gpio_wakeup_enable(PIN_KBD_INT, GPIO_INTR_LOW_LEVEL);
-    gpio_wakeup_enable(PIN_RF_DIO1, GPIO_INTR_HIGH_LEVEL);
-    esp_sleep_enable_gpio_wakeup();
 }
 
 typedef struct { int dim_to, off_to, bright, dim; } bl_cfg_t;

@@ -122,7 +122,7 @@ esp_err_t display_init(void)
     lv_display_set_user_data(s_disp, s_io);
     lv_display_set_color_format(s_disp, LV_COLOR_FORMAT_RGB565_SWAPPED);
     lv_nv3007_set_gap(s_disp, LCD_OFFSET_X, LCD_OFFSET_Y);
-    lv_display_set_rotation(s_disp, LV_DISPLAY_ROTATION_270);
+    lv_display_set_rotation(s_disp, LV_DISPLAY_ROTATION_90);
 
     /* 5. Two partial draw buffers in internal DMA-capable RAM. */
     size_t buf_bytes = BUF_PX * 2;
