@@ -19,6 +19,31 @@ static lv_obj_t *s_screen;
 static int s_current = -1;   /* -1 = launcher home */
 static int s_home_focus = 0; /* remember which launcher tile was selected */
 
+/* Auto-hide bottom bar (apps that set autohide_bar, e.g. Messages). */
+#define BAR_HIDE_INIT_MS  2000   /* hide this long after entering the app */
+#define BAR_HIDE_AFTER_MS 3000   /* stay this long after a reveal/interaction */
+static bool s_bar_auto;
+static bool s_bar_hidden;
+static uint32_t s_bar_since;
+static uint32_t s_bar_delay;
+
+static void bar_hide(void)
+{
+    if (!s_bar_auto || s_bar_hidden || s_current < 0) return;
+    s_bar_hidden = true;
+    menubar_set_visible(false, true);
+    if (s_apps[s_current]->on_bar) s_apps[s_current]->on_bar(false);
+}
+
+static void bar_reveal(void)
+{
+    s_bar_hidden = false;
+    s_bar_since = lv_tick_get();
+    s_bar_delay = BAR_HIDE_AFTER_MS;
+    menubar_set_visible(true, true);
+    if (s_current >= 0 && s_apps[s_current]->on_bar) s_apps[s_current]->on_bar(true);
+}
+
 /* LVGL keypad indev: emit each queued key as a press then a release. */
 static void kp_read(lv_indev_t *indev, lv_indev_data_t *data)
 {
@@ -60,6 +85,9 @@ void app_manager_go_home(void)
     ESP_LOGI(TAG, "-> launcher (focus %d)", s_home_focus);
     if (s_current >= 0 && s_apps[s_current]->close) s_apps[s_current]->close();
     s_current = -1;
+    s_bar_auto = false;
+    s_bar_hidden = false;
+    menubar_set_visible(true, false);   /* always show the bar on the launcher */
     lv_group_remove_all_objs(s_group);
     lv_obj_t *scr = NULL;
     launcher_build(&scr, s_group, s_apps, s_napps, on_launch, s_home_focus);
@@ -78,6 +106,13 @@ void app_manager_launch(int index)
     s_apps[index]->build(&scr, s_group);
     if (scr) load_screen(scr);
     menubar_set_cell(4, "Back");   /* F5 = Back is always present in an app */
+
+    /* Reset the auto-hide bar for the newly entered app. */
+    s_bar_auto = s_apps[index]->autohide_bar;
+    s_bar_hidden = false;
+    menubar_set_visible(true, false);
+    s_bar_since = lv_tick_get();
+    s_bar_delay = BAR_HIDE_INIT_MS;
 }
 
 void app_manager_launch_app(const app_def_t *def)
@@ -101,6 +136,9 @@ static void manager_tick(lv_timer_t *t)
     for (int n = 1; n <= 5; n++) {
         if (!keyboard_f_pressed(n)) continue;
         if (s_current >= 0) {
+            /* While the bar is hidden, the first F-key only brings it back. */
+            if (s_bar_auto && s_bar_hidden) { bar_reveal(); return; }
+            if (s_bar_auto) { s_bar_since = lv_tick_get(); s_bar_delay = BAR_HIDE_AFTER_MS; }
             if (n == 5) { go_back(); return; }               /* F5 = Back, always */
             if (s_apps[s_current]->on_fkey) s_apps[s_current]->on_fkey(n);
         } else if (n == 1) {  /* home: F1 = Open focused tile */
@@ -108,6 +146,9 @@ static void manager_tick(lv_timer_t *t)
             if (f) app_manager_launch((int)(intptr_t)lv_obj_get_user_data(f));
         }
     }
+    if (s_bar_auto && !s_bar_hidden && s_current >= 0 &&
+        (uint32_t)(lv_tick_get() - s_bar_since) >= s_bar_delay)
+        bar_hide();
     if (s_current >= 0 && s_apps[s_current]->tick) s_apps[s_current]->tick();
 }
 

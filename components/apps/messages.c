@@ -6,6 +6,7 @@
  * (which runs in the UI task). */
 #include "apps/app_iface.h"
 #include "ui/frame.h"
+#include "ui/layout.h"
 #include "ui/theme.h"
 #include "ui/colors.h"
 #include "ui/menubar.h"
@@ -25,7 +26,7 @@
 static QueueHandle_t s_pending;
 static net_message_t s_hist[MSG_HISTORY_MAX];
 static int s_hist_n;
-static lv_obj_t *s_list, *s_input;
+static lv_obj_t *s_list, *s_input, *s_body;
 static bool s_active;
 static settings_t *s_settings;
 static bool s_dirty;            /* history changed since last NVS save */
@@ -308,6 +309,7 @@ static void build(lv_obj_t **screen, lv_group_t *group)
 {
     static frame_t f;
     frame_create(&f, "Messages");
+    s_body = f.body;
     lv_obj_set_flex_flow(f.body, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(f.body, 2, 0);
 
@@ -357,11 +359,21 @@ static void close(void)
     if (s_dirty) { msg_save(); s_dirty = false; s_save_throttle = 0; }
 }
 
+/* When the bar auto-hides, grow the body into the freed 18px so the chat gets
+ * the extra room; shrink it back when the bar returns. */
+static void on_bar(bool visible)
+{
+    if (!s_body) return;
+    lv_obj_set_height(s_body, visible ? BODY_H : BODY_H + BOTTOMBAR_H);
+    if (s_list) lv_obj_scroll_to_y(s_list, LV_COORD_MAX, LV_ANIM_OFF);
+}
+
 const app_def_t *app_messages(void)
 {
     static const app_def_t def = {
         .name = "Messages", .icon = LV_SYMBOL_ENVELOPE,
         .build = build, .on_fkey = on_fkey, .close = close,
+        .autohide_bar = true, .on_bar = on_bar,
     };
     return &def;
 }

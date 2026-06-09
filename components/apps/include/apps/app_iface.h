@@ -18,6 +18,12 @@ typedef struct {
     /* Back/Esc pressed: return true if handled internally (e.g. popped a
      * sub-level), false to let the manager return to the launcher. Optional. */
     bool (*on_back)(void);
+    /* If true, the manager auto-hides the bottom bar after a couple of seconds
+     * to free vertical space; the first F-key press only reveals it again. */
+    bool autohide_bar;
+    /* Called when the auto-hidden bar shows/hides, so the app can resize its
+     * content to use the freed space. Optional. */
+    void (*on_bar)(bool visible);
 } app_def_t;
 
 const app_def_t *app_messages(void);

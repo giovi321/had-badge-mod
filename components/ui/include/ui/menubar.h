@@ -3,7 +3,14 @@
 #ifndef UI_MENUBAR_H
 #define UI_MENUBAR_H
 
+#include <stdbool.h>
+
 void menubar_init(void);
+
+/* Slide the bar on/off the bottom of the screen. With anim it eases over ~220ms,
+ * otherwise it snaps. Used by the app manager's auto-hide policy. */
+void menubar_set_visible(bool visible, bool anim);
+bool menubar_visible(void);
 
 /* Set the five F-key labels; pass NULL or "" for a blank cell. */
 void menubar_set_labels(const char *l1, const char *l2, const char *l3,

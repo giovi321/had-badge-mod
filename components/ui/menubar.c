@@ -9,6 +9,7 @@
 static lv_obj_t *s_bar;
 static lv_obj_t *s_cell[FKEY_COUNT];
 static lv_obj_t *s_label[FKEY_COUNT];
+static bool s_visible = true;
 
 void menubar_init(void)
 {
@@ -68,3 +69,23 @@ void menubar_set_cell(int i, const char *text)
     if (i < 0 || i >= FKEY_COUNT) return;
     lv_label_set_text(s_label[i], text ? text : "");
 }
+
+static void slide_cb(void *obj, int32_t y) { lv_obj_set_y((lv_obj_t *)obj, y); }
+
+void menubar_set_visible(bool visible, bool anim)
+{
+    s_visible = visible;
+    int32_t target = visible ? SIDEBAR_H : SCREEN_H;   /* shown at 124, off at 142 */
+    lv_anim_delete(s_bar, slide_cb);
+    if (!anim) { lv_obj_set_y(s_bar, target); return; }
+    lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_var(&a, s_bar);
+    lv_anim_set_exec_cb(&a, slide_cb);
+    lv_anim_set_values(&a, lv_obj_get_y(s_bar), target);
+    lv_anim_set_duration(&a, 220);
+    lv_anim_set_path_cb(&a, lv_anim_path_ease_out);
+    lv_anim_start(&a);
+}
+
+bool menubar_visible(void) { return s_visible; }
