@@ -309,7 +309,12 @@ static void build(lv_obj_t **screen, lv_group_t *group)
 {
     static frame_t f;
     frame_create(&f, "Messages");
+    /* No title header in the chat: it only said "Messages". Drop it and let the
+     * body use the reclaimed top 20px (the "To:" line is the real context). */
+    lv_obj_delete(f.header);
     s_body = f.body;
+    lv_obj_set_pos(s_body, CONTENT_X, 0);
+    lv_obj_set_height(s_body, CONTENT_BOTTOM);   /* y=0 down to the bar line */
     lv_obj_set_flex_flow(f.body, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(f.body, 2, 0);
 
@@ -364,7 +369,9 @@ static void close(void)
 static void on_bar(bool visible)
 {
     if (!s_body) return;
-    lv_obj_set_height(s_body, visible ? BODY_H : BODY_H + BOTTOMBAR_H);
+    /* Body runs from y=0 (no header). Bar visible -> stop at the bar line;
+     * hidden -> take the full screen height. */
+    lv_obj_set_height(s_body, visible ? CONTENT_BOTTOM : SCREEN_H);
     if (s_list) lv_obj_scroll_to_y(s_list, LV_COORD_MAX, LV_ANIM_OFF);
 }
 
