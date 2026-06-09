@@ -44,6 +44,8 @@ static const char *TAG = "sx1262";
 #define CMD_READ_BUFFER          0x1E
 #define CMD_GET_RX_BUFFER_STATUS 0x13
 #define CMD_GET_PACKET_STATUS    0x14
+#define CMD_GET_STATUS           0xC0
+#define CMD_GET_DEVICE_ERRORS    0x17
 
 /* IRQ bits */
 #define IRQ_TX_DONE      0x0001
@@ -324,6 +326,21 @@ esp_err_t radio_chip_init(const radio_params_t *p)
 
     ESP_LOGI(TAG, "SX1262 up: %.3f MHz SF%d BW%.0f CR4/%d sync 0x%02X pwr %ddBm",
              s_p.freq_mhz, s_p.sf, s_p.bw_khz, s_p.cr, s_p.sync_word, s_p.power_dbm);
+
+    /* Self-test: confirm the chip is healthy and our config actually reached it. */
+    {
+        uint8_t gs_tx[2] = { CMD_GET_STATUS, 0 }, gs_rx[2] = {0};
+        rf_xfer(gs_tx, gs_rx, 2);
+        uint8_t ge_tx[3] = { CMD_GET_DEVICE_ERRORS, 0, 0 }, ge_rx[3] = {0};
+        rf_xfer(ge_tx, ge_rx, 3);
+        uint16_t errs = (uint16_t)((ge_rx[1] << 8) | ge_rx[2]);
+        uint8_t sync[2] = {0}, iq = 0;
+        read_reg(REG_LORA_SYNC_WORD_MSB, sync, 2);
+        read_reg(REG_IQ_CONFIG, &iq, 1);
+        ESP_LOGI(TAG, "selftest: status %02X/%02X errors 0x%04X sync %02X%02X(want 24B4) iq %02X(bit2 want 0)",
+                 gs_rx[0], gs_rx[1], errs, sync[0], sync[1], iq);
+        if (errs) ESP_LOGW(TAG, "SX1262 device errors set: 0x%04X", errs);
+    }
     return ESP_OK;
 }
 
@@ -382,6 +399,16 @@ void radio_chip_start_rx(void)
     clear_irq(IRQ_ALL);
     uint8_t to[3] = { (RX_CONTINUOUS >> 16) & 0xFF, (RX_CONTINUOUS >> 8) & 0xFF, RX_CONTINUOUS & 0xFF };
     cmd(CMD_SET_RX, to, 3);
+
+    /* Confirm (once) the chip actually entered RX mode (status bits 6:4 == 5). */
+    static bool logged;
+    if (!logged) {
+        logged = true;
+        uint8_t gs_tx[2] = { CMD_GET_STATUS, 0 }, gs_rx[2] = {0};
+        rf_xfer(gs_tx, gs_rx, 2);
+        ESP_LOGI(TAG, "after SET_RX: status 0x%02X (chip mode %d, want 5=RX)",
+                 gs_rx[1], (gs_rx[1] >> 4) & 0x7);
+    }
 }
 
 int radio_chip_read_packet(uint8_t *buf, int cap, float *rssi, float *snr)
