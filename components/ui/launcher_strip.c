@@ -3,7 +3,7 @@
 #include "ui/theme.h"
 #include "ui/colors.h"
 
-#define TILE_W 76
+#define TILE_W 104   /* wide enough that names like "Messages" fit on one line */
 #define TILE_H 92
 
 static strip_select_cb s_cb;

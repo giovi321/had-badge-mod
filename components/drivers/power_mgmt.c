@@ -31,8 +31,25 @@ void power_init(void)
 #endif
 }
 
-typedef struct { int dim_to, off_to, bright, dim; } bl_cfg_t;
-static bl_cfg_t s_cfg;
+static settings_t *s_bl_reg;
+static int bl_cfg(const char *key, int def) { return s_bl_reg ? (int)settings_get_int(s_bl_reg, key) : def; }
+
+static const setting_t BL_SCHEMA[] = {
+    {.key = "bl_dim_s", .type = SET_INT, .def = "60", .label = "Dim after (s, 0=off)",
+     .group = "Power", .minv = 0, .maxv = 3600, .has_min = true, .has_max = true},
+    {.key = "bl_off_s", .type = SET_INT, .def = "0", .label = "Off after (s, 0=off)",
+     .group = "Power", .minv = 0, .maxv = 3600, .has_min = true, .has_max = true},
+    {.key = "bl_bright", .type = SET_INT, .def = "700", .label = "Bright level",
+     .group = "Power", .minv = 10, .maxv = 1023, .has_min = true, .has_max = true},
+    {.key = "bl_dim", .type = SET_INT, .def = "120", .label = "Dim level",
+     .group = "Power", .minv = 0, .maxv = 1023, .has_min = true, .has_max = true},
+};
+
+void power_register_settings(settings_t *reg)
+{
+    s_bl_reg = reg;
+    settings_register_many(reg, BL_SCHEMA, (int)(sizeof BL_SCHEMA / sizeof BL_SCHEMA[0]));
+}
 
 static void backlight_task(void *arg)
 {
@@ -40,30 +57,26 @@ static void backlight_task(void *arg)
     uint32_t last = keyboard_activity_count();
     int idle = 0;
     int stage = 0; /* 0 bright, 1 dim, 2 off */
+    backlight_set(bl_cfg("bl_bright", 700));
     for (;;) {
         vTaskDelay(pdMS_TO_TICKS(1000));
+        int bright = bl_cfg("bl_bright", 700), dim = bl_cfg("bl_dim", 120);
+        int dim_to = bl_cfg("bl_dim_s", 60), off_to = bl_cfg("bl_off_s", 0);
         uint32_t now = keyboard_activity_count();
         if (now != last) {
             last = now;
             idle = 0;
-            if (stage != 0) { backlight_set(s_cfg.bright); stage = 0; }
+            if (stage != 0) { backlight_set(bright); stage = 0; }
             continue;
         }
         idle++;
-        if (stage == 0 && s_cfg.dim_to > 0 && idle >= s_cfg.dim_to) {
-            backlight_set(s_cfg.dim); stage = 1;
-        } else if (stage == 1 && s_cfg.off_to > 0 && idle >= s_cfg.off_to) {
-            backlight_set(0); stage = 2;
-        }
+        if (stage == 0 && dim_to > 0 && idle >= dim_to) { backlight_set(dim); stage = 1; }
+        else if (stage == 1 && off_to > 0 && idle >= off_to) { backlight_set(0); stage = 2; }
     }
 }
 
-void power_start_backlight_policy(int dim_timeout_s, int off_timeout_s, int duty_bright, int duty_dim)
+void power_start_backlight_policy(settings_t *reg)
 {
-    s_cfg.dim_to = dim_timeout_s;
-    s_cfg.off_to = off_timeout_s;
-    s_cfg.bright = duty_bright;
-    s_cfg.dim = duty_dim;
-    backlight_set(duty_bright);
+    s_bl_reg = reg;
     xTaskCreatePinnedToCore(backlight_task, "bl", 2560, NULL, 2, NULL, 1);
 }

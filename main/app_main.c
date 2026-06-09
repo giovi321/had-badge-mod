@@ -58,6 +58,7 @@ void app_main(void)
     eventbus_init(&s_bus);
     settings_init(&s_settings, settings_nvs_create("settings"));
     net_register_settings(&s_settings);   /* radio/device schema */
+    power_register_settings(&s_settings); /* backlight/power schema */
 
     /* 2. Display + theme + persistent chrome (sidebar + full-width bottom bar). */
     if (display_init() != ESP_OK) ESP_LOGE(TAG, "display init failed");
@@ -85,8 +86,8 @@ void app_main(void)
     app_manager_init(&s_bus);
     status_svc_init(&s_settings);
 
-    /* 7. Power policy (light sleep, wake sources, backlight dim/off). */
-    power_start_backlight_policy(BL_DIM_TIMEOUT_S, BL_OFF_TIMEOUT_S, BL_DUTY_BRIGHT, BL_DUTY_DIM);
+    /* 7. Power policy (DFS + backlight dim/off, configurable in Settings). */
+    power_start_backlight_policy(&s_settings);
     power_init();
 
     /* 8. Start the UI task (drives LVGL from here on). */

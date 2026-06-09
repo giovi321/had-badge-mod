@@ -15,6 +15,9 @@ typedef struct {
     void (*on_fkey)(int n);          /* F1..F5 pressed (optional) */
     void (*tick)(void);              /* ~5 Hz while active (optional) */
     void (*close)(void);             /* free per-instance state (optional) */
+    /* Back/Esc pressed: return true if handled internally (e.g. popped a
+     * sub-level), false to let the manager return to the launcher. Optional. */
+    bool (*on_back)(void);
 } app_def_t;
 
 const app_def_t *app_messages(void);

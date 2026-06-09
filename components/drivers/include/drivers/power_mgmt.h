@@ -2,11 +2,16 @@
 #ifndef DRIVERS_POWER_MGMT_H
 #define DRIVERS_POWER_MGMT_H
 
-/* Configure DFS/light sleep and GPIO wake on keyboard INT + radio DIO1. */
+#include "core/settings.h"
+
+/* Configure DFS (light sleep deferred). */
 void power_init(void);
 
-/* Start the backlight dimming task (dims/off on inactivity, restores on key). */
-void power_start_backlight_policy(int dim_timeout_s, int off_timeout_s,
-                                  int duty_bright, int duty_dim);
+/* Register the Power settings group (dim/off timeouts, bright/dim levels). */
+void power_register_settings(settings_t *reg);
+
+/* Start the backlight dimming task. Reads its thresholds live from settings, so
+ * changes apply without a reboot. */
+void power_start_backlight_policy(settings_t *reg);
 
 #endif /* DRIVERS_POWER_MGMT_H */

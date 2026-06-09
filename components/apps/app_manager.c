@@ -57,6 +57,7 @@ static void on_launch(int index) { app_manager_launch(index); }
 
 void app_manager_go_home(void)
 {
+    ESP_LOGI(TAG, "-> launcher (focus %d)", s_home_focus);
     if (s_current >= 0 && s_apps[s_current]->close) s_apps[s_current]->close();
     s_current = -1;
     lv_group_remove_all_objs(s_group);
@@ -68,6 +69,7 @@ void app_manager_go_home(void)
 void app_manager_launch(int index)
 {
     if (index < 0 || index >= s_napps) return;
+    ESP_LOGI(TAG, "-> launch %d (%s)", index, s_apps[index]->name);
     if (s_current >= 0 && s_apps[s_current]->close) s_apps[s_current]->close();
     s_current = index;
     s_home_focus = index;          /* land back here when we return home */
@@ -78,16 +80,22 @@ void app_manager_launch(int index)
     menubar_set_cell(4, "Back");   /* F5 = Back is always present in an app */
 }
 
+static void go_back(void)
+{
+    /* Let the app pop an internal level first (Settings sub-menus); otherwise
+     * return straight to the launcher. */
+    if (s_current >= 0 && s_apps[s_current]->on_back && s_apps[s_current]->on_back()) return;
+    app_manager_go_home();
+}
+
 static void manager_tick(lv_timer_t *t)
 {
     (void)t;
-    if (keyboard_esc_pressed()) {
-        if (s_current >= 0) { app_manager_go_home(); return; }
-    }
+    if (keyboard_esc_pressed() && s_current >= 0) { go_back(); return; }
     for (int n = 1; n <= 5; n++) {
         if (!keyboard_f_pressed(n)) continue;
         if (s_current >= 0) {
-            if (n == 5) { app_manager_go_home(); return; }   /* F5 = Back, always */
+            if (n == 5) { go_back(); return; }               /* F5 = Back, always */
             if (s_apps[s_current]->on_fkey) s_apps[s_current]->on_fkey(n);
         } else if (n == 3) {  /* home: F3 = Open focused tile */
             lv_obj_t *f = lv_group_get_focused(s_group);
