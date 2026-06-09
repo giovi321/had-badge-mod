@@ -58,13 +58,8 @@ static void radio_task(void *arg)
         if (radio_chip_wait_event(500)) {
             float rssi = 0, snr = 0;
             int n = radio_chip_read_packet(buf, sizeof buf, &rssi, &snr);
-            if (n > 0) {
-                /* Raw LoRa reception, before any channel/decrypt filtering. */
-                ESP_LOGI(TAG, "RX %d bytes  rssi %.0f  snr %.1f", n, (double)rssi, (double)snr);
-                net_on_frame(buf, n, rssi, snr, (uint32_t)time(NULL));
-            } else {
-                vTaskDelay(1);   /* spurious wake / DIO1 noise: yield, never spin a core */
-            }
+            if (n > 0) net_on_frame(buf, n, rssi, snr, (uint32_t)time(NULL));
+            else vTaskDelay(1);   /* spurious wake / DIO1 noise: yield, never spin a core */
         }
     }
 }

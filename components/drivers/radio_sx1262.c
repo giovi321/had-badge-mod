@@ -44,8 +44,6 @@ static const char *TAG = "sx1262";
 #define CMD_READ_BUFFER          0x1E
 #define CMD_GET_RX_BUFFER_STATUS 0x13
 #define CMD_GET_PACKET_STATUS    0x14
-#define CMD_GET_STATUS           0xC0
-#define CMD_GET_DEVICE_ERRORS    0x17
 #define CMD_CLEAR_DEVICE_ERRORS  0x07
 
 /* IRQ bits */
@@ -346,21 +344,6 @@ esp_err_t radio_chip_init(const radio_params_t *p)
 
     ESP_LOGI(TAG, "SX1262 up: %.3f MHz SF%d BW%.0f CR4/%d sync 0x%02X pwr %ddBm",
              s_p.freq_mhz, s_p.sf, s_p.bw_khz, s_p.cr, s_p.sync_word, s_p.power_dbm);
-
-    /* Self-test: confirm the chip is healthy and our config actually reached it.
-     * devErr is logged as raw response bytes (offset is chip-revision sensitive);
-     * all-zero means no calibration/PLL/XOSC faults remain. */
-    {
-        uint8_t gs_tx[2] = { CMD_GET_STATUS, 0 }, gs_rx[2] = {0};
-        rf_xfer(gs_tx, gs_rx, 2);
-        uint8_t ge_tx[4] = { CMD_GET_DEVICE_ERRORS, 0, 0, 0 }, ge_rx[4] = {0};
-        rf_xfer(ge_tx, ge_rx, 4);
-        uint8_t sync[2] = {0}, iq = 0;
-        read_reg(REG_LORA_SYNC_WORD_MSB, sync, 2);
-        read_reg(REG_IQ_CONFIG, &iq, 1);
-        ESP_LOGI(TAG, "selftest: status %02X/%02X devErr %02X %02X %02X sync %02X%02X(want 24B4) iq %02X(bit2 want 0)",
-                 gs_rx[0], gs_rx[1], ge_rx[1], ge_rx[2], ge_rx[3], sync[0], sync[1], iq);
-    }
     return ESP_OK;
 }
 
@@ -419,29 +402,13 @@ void radio_chip_start_rx(void)
     clear_irq(IRQ_ALL);
     uint8_t to[3] = { (RX_CONTINUOUS >> 16) & 0xFF, (RX_CONTINUOUS >> 8) & 0xFF, RX_CONTINUOUS & 0xFF };
     cmd(CMD_SET_RX, to, 3);
-
-    /* Confirm (once) the chip actually entered RX mode (status bits 6:4 == 5). */
-    static bool logged;
-    if (!logged) {
-        logged = true;
-        uint8_t gs_tx[2] = { CMD_GET_STATUS, 0 }, gs_rx[2] = {0};
-        rf_xfer(gs_tx, gs_rx, 2);
-        ESP_LOGI(TAG, "after SET_RX: status 0x%02X (chip mode %d, want 5=RX)",
-                 gs_rx[1], (gs_rx[1] >> 4) & 0x7);
-    }
 }
 
 int radio_chip_read_packet(uint8_t *buf, int cap, float *rssi, float *snr)
 {
     uint16_t irq = get_irq();
     if (!(irq & IRQ_RX_DONE)) { clear_irq(IRQ_ALL); return -1; }
-    if (irq & (IRQ_CRC_ERR | IRQ_HEADER_ERR)) {
-        /* A LoRa frame demodulated on our SF/BW/sync but failed validation:
-         * proof the radio hears traffic on this channel even if it is unusable. */
-        ESP_LOGW(TAG, "rx LoRa frame failed %s (irq 0x%03X)",
-                 (irq & IRQ_CRC_ERR) ? "CRC" : "header", irq);
-        clear_irq(IRQ_ALL); return -1;
-    }
+    if (irq & (IRQ_CRC_ERR | IRQ_HEADER_ERR)) { clear_irq(IRQ_ALL); return -1; }
 
     /* Leading status byte then data: rx[1]=status, rx[2]=payloadLen, rx[3]=ptr. */
     uint8_t tx[4] = { CMD_GET_RX_BUFFER_STATUS, 0, 0, 0 }, rx[4] = {0};
