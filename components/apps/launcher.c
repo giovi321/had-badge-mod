@@ -24,5 +24,5 @@ void launcher_build(lv_obj_t **screen, lv_group_t *group,
     launcher_strip_create(f.body, s_items, n, on_strip, NULL, group, initial_focus);
     *screen = f.screen;
 
-    menubar_set_labels("", "", "Open", "", "");
+    menubar_set_labels("Open", "", "", "", "");
 }

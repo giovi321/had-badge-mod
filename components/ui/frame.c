@@ -55,6 +55,8 @@ void ui_scroll_focusable(lv_obj_t *cont, lv_group_t *group)
 {
     lv_obj_add_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
     lv_obj_set_scroll_dir(cont, LV_DIR_VER);
+    /* Clamp at the ends: no rubber-band overscroll past the first/last item. */
+    lv_obj_remove_flag(cont, LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_MOMENTUM);
     lv_obj_add_event_cb(cont, scroll_key_cb, LV_EVENT_KEY, NULL);
     if (group) lv_group_add_obj(group, cont);
 }

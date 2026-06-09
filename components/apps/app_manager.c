@@ -103,7 +103,7 @@ static void manager_tick(lv_timer_t *t)
         if (s_current >= 0) {
             if (n == 5) { go_back(); return; }               /* F5 = Back, always */
             if (s_apps[s_current]->on_fkey) s_apps[s_current]->on_fkey(n);
-        } else if (n == 3) {  /* home: F3 = Open focused tile */
+        } else if (n == 1) {  /* home: F1 = Open focused tile */
             lv_obj_t *f = lv_group_get_focused(s_group);
             if (f) app_manager_launch((int)(intptr_t)lv_obj_get_user_data(f));
         }

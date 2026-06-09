@@ -63,6 +63,17 @@ void theme_init(void)
     lv_style_init(&st_hint);
     lv_style_set_text_font(&st_hint, theme_font_body());
     lv_style_set_text_color(&st_hint, theme_hex(C_TEXT_DIM));
+
+    /* Force the dark variant of the default theme, in code rather than via
+     * Kconfig (which does not reliably propagate). Without this, widget text
+     * defaults to the light-mode (dark) colour and is unreadable on our dark
+     * background. The display exists by now (display_init ran first). */
+    lv_display_t *disp = lv_display_get_default();
+    if (disp) {
+        lv_theme_t *th = lv_theme_default_init(disp, theme_hex(C_ACCENT), theme_hex(C_TEXT_DIM),
+                                               true /* dark */, theme_font_body());
+        lv_display_set_theme(disp, th);
+    }
 }
 
 lv_obj_t *theme_screen_create(void)

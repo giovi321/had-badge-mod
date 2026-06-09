@@ -115,6 +115,8 @@ static void build(lv_obj_t **screen, lv_group_t *group)
     lv_obj_set_style_pad_all(s_list, 0, 0);
     lv_obj_set_style_pad_row(s_list, 3, 0);
     lv_obj_set_flex_flow(s_list, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_scroll_dir(s_list, LV_DIR_VER);
+    lv_obj_remove_flag(s_list, LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_MOMENTUM);
     s_rendered = -1;
     render();
     *screen = f.screen;

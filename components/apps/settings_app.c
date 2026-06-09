@@ -39,6 +39,7 @@ static void clear_body(void)
     lv_obj_set_flex_flow(s_body, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(s_body, 3, 0);
     lv_obj_set_scroll_dir(s_body, LV_DIR_VER);
+    lv_obj_remove_flag(s_body, LV_OBJ_FLAG_SCROLL_ELASTIC | LV_OBJ_FLAG_SCROLL_MOMENTUM);
 }
 
 static lv_obj_t *make_row(const char *text)

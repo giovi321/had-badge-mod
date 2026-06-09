@@ -32,6 +32,7 @@ static lv_obj_t *make_row(lv_obj_t *parent, const char *caption)
     lv_obj_t *val = lv_label_create(box);
     lv_label_set_long_mode(val, LV_LABEL_LONG_DOT);
     lv_obj_set_flex_grow(val, 1);
+    lv_obj_set_style_text_color(val, theme_hex(C_TEXT), 0);
     lv_label_set_text(val, "--");
     return val;
 }
