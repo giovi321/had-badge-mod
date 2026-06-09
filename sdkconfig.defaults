@@ -33,10 +33,9 @@ CONFIG_LV_USE_PERF_MONITOR=n
 CONFIG_LV_FONT_MONTSERRAT_14=y
 CONFIG_LV_FONT_MONTSERRAT_18=y
 CONFIG_LV_FONT_DEFAULT_MONTSERRAT_14=y
-# NV3007 panel driver (built into LVGL 9.4+). If this Kconfig symbol is absent
-# in your LVGL version, set `#define LV_USE_NV3007 1` in an lv_conf override.
-CONFIG_LV_USE_NV3007=y
-CONFIG_LV_USE_GENERIC_MIPI=y
+# NV3007 panel driver: LVGL 9.5 doesn't expose it via Kconfig, so it's enabled
+# build-wide with -DCONFIG_LV_USE_NV3007=1 in the top-level CMakeLists.txt
+# (which also pulls in the generic-MIPI driver it depends on).
 
 # --- Misc -----------------------------------------------------------------
 CONFIG_COMPILER_OPTIMIZATION_PERF=y

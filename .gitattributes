@@ -1,4 +1,4 @@
-# Normalize line endings to LF (MicroPython source synced to the badge).
+# Normalize line endings to LF.
 * text=auto eol=lf
 
 # Binary assets — never normalize.

@@ -1,6 +1,7 @@
 /* Status service: an lv_timer (runs in the UI task) that gathers battery / mesh
  * / gps / wifi state into a snapshot and refreshes the sidebar. */
 #include "services/services.h"
+#include "lvgl.h"
 #include "ui/sidebar.h"
 #include "ui/status.h"
 #include "drivers/battery.h"
