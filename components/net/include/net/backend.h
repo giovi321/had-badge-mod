@@ -50,6 +50,15 @@ typedef struct {
 } net_pkt_log_t;
 int net_packet_log(net_pkt_log_t *out, int max);   /* most recent first; returns count */
 
+/* RX observer (for the BLE companion bridge): called for every decoded packet
+ * with the decrypted Data protobuf bytes. */
+typedef void (*net_rx_observer_fn)(uint32_t from, uint32_t to, uint32_t id,
+                                   const uint8_t *data, int data_len, float rssi, float snr);
+void net_set_rx_observer(net_rx_observer_fn fn);
+
+/* Send a packet built from an already-encoded Data protobuf (BLE -> LoRa). */
+bool net_send_meshpacket(uint32_t to, bool want_ack, const uint8_t *data, int data_len);
+
 void net_init(settings_t *settings, eventbus_t *bus, uint32_t my_node);
 void net_register_settings(settings_t *settings);  /* schema only (call early) */
 void net_set_tx(net_tx_fn_t fn);

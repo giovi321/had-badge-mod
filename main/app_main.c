@@ -29,6 +29,7 @@
 
 #include "services/services.h"
 #include "services/track.h"
+#include "ble/ble.h"
 #include "apps/app_manager.h"
 #include "apps/app_iface.h"
 
@@ -82,6 +83,11 @@ void app_main(void)
     mesh_svc_init(&s_settings);
     track_svc_init();
     wifi_svc_init(&s_settings);
+    {
+        char sn[16];
+        settings_get_str(&s_settings, "short_name", sn, sizeof sn);
+        ble_init(&s_settings, sn);
+    }
 
     /* 6. Apps + UI. */
     messages_init(&s_bus, &s_settings);

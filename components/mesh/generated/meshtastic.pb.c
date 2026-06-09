@@ -21,6 +21,27 @@ PB_BIND(meshtastic_Telemetry, meshtastic_Telemetry, AUTO)
 PB_BIND(meshtastic_User, meshtastic_User, AUTO)
 
 
+PB_BIND(meshtastic_MeshPacket, meshtastic_MeshPacket, 2)
+
+
+PB_BIND(meshtastic_MyNodeInfo, meshtastic_MyNodeInfo, AUTO)
+
+
+PB_BIND(meshtastic_NodeInfo, meshtastic_NodeInfo, AUTO)
+
+
+PB_BIND(meshtastic_ChannelSettings, meshtastic_ChannelSettings, AUTO)
+
+
+PB_BIND(meshtastic_Channel, meshtastic_Channel, AUTO)
+
+
+PB_BIND(meshtastic_ToRadio, meshtastic_ToRadio, 2)
+
+
+PB_BIND(meshtastic_FromRadio, meshtastic_FromRadio, 2)
+
+
 
 
 

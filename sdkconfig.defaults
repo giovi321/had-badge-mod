@@ -35,6 +35,10 @@ CONFIG_LV_FONT_DEFAULT_MONTSERRAT_14=y
 # build-wide with -DCONFIG_LV_USE_NV3007=1 in the top-level CMakeLists.txt
 # (which also pulls in the generic-MIPI driver it depends on).
 
+# --- Bluetooth (NimBLE, for the Meshtastic companion; runtime-gated) -------
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+
 # --- Misc -----------------------------------------------------------------
 CONFIG_COMPILER_OPTIMIZATION_PERF=y
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144

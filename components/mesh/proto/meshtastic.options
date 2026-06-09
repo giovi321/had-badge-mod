@@ -6,3 +6,6 @@ meshtastic.User.id             max_size:16
 meshtastic.User.long_name      max_size:48
 meshtastic.User.short_name     max_size:16
 meshtastic.User.macaddr        max_size:6  fixed_length:true
+meshtastic.MeshPacket.encrypted    max_size:256
+meshtastic.ChannelSettings.psk     max_size:32
+meshtastic.ChannelSettings.name    max_size:16

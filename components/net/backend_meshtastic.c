@@ -86,6 +86,23 @@ int mtb_packet_log(net_pkt_log_t *out, int max)
     return n;
 }
 
+static net_rx_observer_fn s_rx_observer;   /* persists across reload */
+void mtb_set_rx_observer(net_rx_observer_fn fn) { s_rx_observer = fn; }
+
+bool mtb_send_meshpacket(uint32_t to, bool want_ack, const uint8_t *data, int data_len)
+{
+    uint8_t frame[256];
+    uint32_t pid = esp_random();
+    if (!pid) pid = 1;
+    int flen = mesh_build_packet(frame, sizeof frame, to, g.my_node, pid, g.channel,
+                                 g.psk, (size_t)g.psk_len, data, (size_t)data_len,
+                                 g.hop_limit, g.hop_limit, want_ack);
+    if (flen < 0 || !g.tx) return false;
+    bool ok = g.tx(frame, flen);
+    if (ok) g.tx_count++;
+    return ok;
+}
+
 void mtb_register_settings(settings_t *st)
 {
     settings_register_many(st, MESH_SCHEMA, (int)(sizeof MESH_SCHEMA / sizeof MESH_SCHEMA[0]));
@@ -271,6 +288,7 @@ void mtb_on_frame(const uint8_t *frame, int len, float rssi, float snr, uint32_t
     }
 
     pktlog_add(hdr.from, (uint8_t)d.portnum, rssi, snr, now);
+    if (s_rx_observer) s_rx_observer(hdr.from, hdr.to, hdr.id, plain, (int)pl, rssi, snr);
 
     net_message_t m = {0};
     m.from_id = hdr.from; m.snr = snr; m.rssi = (int)rssi; m.when = now;

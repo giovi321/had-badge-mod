@@ -15,6 +15,8 @@ bool net_send_position(double lat, double lon, int32_t alt, uint32_t ts) { retur
 bool net_send_nodeinfo(void) { return mtb_send_nodeinfo(); }
 bool net_send_telemetry(int battery_pct, float voltage, uint32_t uptime_s) { return mtb_send_telemetry(battery_pct, voltage, uptime_s); }
 int net_packet_log(net_pkt_log_t *out, int max) { return mtb_packet_log(out, max); }
+void net_set_rx_observer(net_rx_observer_fn fn) { mtb_set_rx_observer(fn); }
+bool net_send_meshpacket(uint32_t to, bool want_ack, const uint8_t *data, int data_len) { return mtb_send_meshpacket(to, want_ack, data, data_len); }
 
 uint32_t net_my_node(void) { return mtb_my_node(); }
 const char *net_channel_name(void) { return mtb_channel(); }

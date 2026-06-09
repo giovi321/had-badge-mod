@@ -71,3 +71,64 @@ message User {
   bool is_licensed = 6;
   int32 role = 7;         // DeviceRole enum (varint)
 }
+
+// --- BLE companion API (subset of mesh.proto used over the phone link) ------
+
+message MeshPacket {
+  fixed32 from = 1;
+  fixed32 to = 2;
+  uint32 channel = 3;
+  oneof payload_variant {
+    Data decoded = 4;
+    bytes encrypted = 5;
+  }
+  fixed32 id = 6;
+  fixed32 rx_time = 7;
+  float rx_snr = 8;
+  uint32 hop_limit = 9;
+  bool want_ack = 10;
+  int32 rx_rssi = 12;
+}
+
+message MyNodeInfo {
+  uint32 my_node_num = 1;
+}
+
+message NodeInfo {
+  uint32 num = 1;
+  User user = 2;
+  Position position = 3;
+  float snr = 4;
+  fixed32 last_heard = 5;
+  DeviceMetrics device_metrics = 6;
+}
+
+message ChannelSettings {
+  bytes psk = 2;
+  string name = 3;
+}
+
+message Channel {
+  int32 index = 1;
+  ChannelSettings settings = 2;
+  int32 role = 3;   // 0 disabled, 1 primary, 2 secondary
+}
+
+message ToRadio {
+  oneof payload_variant {
+    MeshPacket packet = 1;
+    uint32 want_config_id = 3;
+    bool disconnect = 4;
+  }
+}
+
+message FromRadio {
+  uint32 id = 1;
+  oneof payload_variant {
+    MeshPacket packet = 2;
+    MyNodeInfo my_info = 3;
+    NodeInfo node_info = 4;
+    uint32 config_complete_id = 7;
+    Channel channel = 10;
+  }
+}
