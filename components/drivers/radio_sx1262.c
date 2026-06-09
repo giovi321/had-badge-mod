@@ -374,7 +374,13 @@ int radio_chip_read_packet(uint8_t *buf, int cap, float *rssi, float *snr)
 {
     uint16_t irq = get_irq();
     if (!(irq & IRQ_RX_DONE)) { clear_irq(IRQ_ALL); return -1; }
-    if (irq & (IRQ_CRC_ERR | IRQ_HEADER_ERR)) { clear_irq(IRQ_ALL); return -1; }
+    if (irq & (IRQ_CRC_ERR | IRQ_HEADER_ERR)) {
+        /* A LoRa frame demodulated on our SF/BW/sync but failed validation:
+         * proof the radio hears traffic on this channel even if it is unusable. */
+        ESP_LOGW(TAG, "rx LoRa frame failed %s (irq 0x%03X)",
+                 (irq & IRQ_CRC_ERR) ? "CRC" : "header", irq);
+        clear_irq(IRQ_ALL); return -1;
+    }
 
     uint8_t st[2] = {0};
     uint8_t tx[3] = { CMD_GET_RX_BUFFER_STATUS, 0, 0 }, rx[3] = {0};
