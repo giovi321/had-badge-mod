@@ -11,6 +11,7 @@ void mtb_radio_cfg(net_radio_cfg_t *out);
 void mtb_set_tx(net_tx_fn_t fn);
 
 bool mtb_send_text(const char *text);
+bool mtb_send_text_to(uint32_t to_id, const char *text);
 bool mtb_send_position(double lat, double lon, int32_t alt, uint32_t ts);
 bool mtb_send_nodeinfo(void);
 void mtb_on_frame(const uint8_t *frame, int len, float rssi, float snr, uint32_t now);

@@ -1,25 +1,57 @@
 /* Nodes app: list of heard Meshtastic nodes (name, SNR, age). */
 #include "apps/app_iface.h"
+#include "apps/app_manager.h"
 #include "ui/frame.h"
 #include "ui/theme.h"
 #include "ui/colors.h"
 #include "ui/menubar.h"
 #include "net/backend.h"
 #include "net/message.h"
+#include "drivers/gps.h"
+#include "util/geo.h"
 
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
 
+static const char *cardinal(double brg)
+{
+    static const char *c[] = {"N", "NE", "E", "SE", "S", "SW", "W", "NW"};
+    return c[((int)((brg + 22.5) / 45.0)) % 8];
+}
+
 static lv_obj_t *s_list;
 static lv_group_t *s_group;
 static int s_rendered = -1;
+
+static void message_focused(void)
+{
+    lv_obj_t *f = lv_group_get_focused(s_group);
+    if (!f) return;
+    uint32_t num = (uint32_t)(uintptr_t)lv_obj_get_user_data(f);
+    if (!num) return;
+    messages_set_target(num);
+    app_manager_launch_app(app_messages());
+}
+
+static void node_key(lv_event_t *e)
+{
+    uint32_t k = lv_event_get_key(e);
+    if (k == LV_KEY_DOWN) lv_group_focus_next(s_group);
+    else if (k == LV_KEY_UP) lv_group_focus_prev(s_group);
+    else if (k == LV_KEY_ENTER) { message_focused(); return; }
+    lv_obj_t *f = lv_group_get_focused(s_group);
+    if (f) lv_obj_scroll_to_view(f, LV_ANIM_ON);
+}
+static void node_click(lv_event_t *e) { (void)e; message_focused(); }
 
 static void render(void)
 {
     nodedb_t *db = net_nodedb();
     lv_obj_clean(s_list);
     uint32_t now = (uint32_t)time(NULL);
+    gps_fix_t fix;
+    bool havegps = gps_get_fix(&fix) && fix.valid;
 
     if (db->count == 0) {
         lv_obj_t *empty = lv_label_create(s_list);
@@ -30,15 +62,25 @@ static void render(void)
     }
     for (int i = 0; i < db->count; i++) {
         node_record_t *r = &db->nodes[i];
-        char label[64], line[96];
+        char label[64], line[128], nav[28] = "";
         net_node_label(r->num, r->long_name, r->short_name, label, sizeof label);
         long age = now ? (long)(now - r->last_heard) : 0;
-        snprintf(line, sizeof line, "%s   SNR %.0f   %lds", label, (double)r->snr, age);
+        if (havegps && r->has_position) {
+            double nlat = r->lat_i / 1e7, nlon = r->lon_i / 1e7;
+            double dist = geo_distance_m(fix.lat, fix.lon, nlat, nlon);
+            const char *card = cardinal(geo_bearing_deg(fix.lat, fix.lon, nlat, nlon));
+            if (dist >= 1000.0) snprintf(nav, sizeof nav, "   %.1fkm %s", dist / 1000.0, card);
+            else snprintf(nav, sizeof nav, "   %.0fm %s", dist, card);
+        }
+        snprintf(line, sizeof line, "%s   SNR %.0f   %lds%s", label, (double)r->snr, age, nav);
 
         lv_obj_t *btn = lv_button_create(s_list);
         lv_obj_set_width(btn, LV_PCT(100));
         lv_obj_add_style(btn, &st_card, 0);
         lv_obj_add_style(btn, &st_card_sel, LV_STATE_FOCUSED);
+        lv_obj_set_user_data(btn, (void *)(uintptr_t)r->num);
+        lv_obj_add_event_cb(btn, node_key, LV_EVENT_KEY, NULL);
+        lv_obj_add_event_cb(btn, node_click, LV_EVENT_CLICKED, NULL);
         lv_obj_t *l = lv_label_create(btn);
         lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
         lv_obj_set_width(l, LV_PCT(100));
@@ -63,7 +105,7 @@ static void build(lv_obj_t **screen, lv_group_t *group)
     s_rendered = -1;
     render();
     *screen = f.screen;
-    menubar_set_labels("", "", "", "", "");
+    menubar_set_labels("Message", "", "", "", "");
 }
 
 static void tick(void)
@@ -71,11 +113,13 @@ static void tick(void)
     if (net_peer_count() != s_rendered) render();
 }
 
+static void on_fkey(int n) { if (n == 1) message_focused(); }
+
 const app_def_t *app_nodes(void)
 {
     static const app_def_t def = {
         .name = "Nodes", .icon = LV_SYMBOL_LIST,
-        .build = build, .tick = tick,
+        .build = build, .tick = tick, .on_fkey = on_fkey,
     };
     return &def;
 }

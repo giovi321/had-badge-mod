@@ -63,6 +63,8 @@ static struct {
     dedup_t dd;
     uint32_t rx_count, tx_count;
     float last_rssi, last_snr;
+    uint32_t ack_pending[16];   /* packet ids of unicast sends awaiting an ack */
+    int ack_head;
 } g;
 
 void mtb_register_settings(settings_t *st)
@@ -124,7 +126,8 @@ void mtb_radio_cfg(net_radio_cfg_t *out)
 }
 
 /* --- TX ----------------------------------------------------------------- */
-static bool send_data(int portnum, const uint8_t *payload, int payload_len)
+static bool send_data(int portnum, const uint8_t *payload, int payload_len,
+                      uint32_t to_id, bool want_ack, uint32_t *out_pid)
 {
     meshtastic_Data d = meshtastic_Data_init_zero;
     d.portnum = (meshtastic_PortNum)portnum;
@@ -139,28 +142,37 @@ static bool send_data(int portnum, const uint8_t *payload, int payload_len)
     uint8_t frame[256];
     uint32_t pid = esp_random();
     if (!pid) pid = 1;
-    int flen = mesh_build_packet(frame, sizeof frame, MESH_BROADCAST, g.my_node, pid,
+    int flen = mesh_build_packet(frame, sizeof frame, to_id, g.my_node, pid,
                                  g.channel, g.psk, (size_t)g.psk_len, data, (size_t)dlen,
-                                 g.hop_limit, g.hop_limit, false);
+                                 g.hop_limit, g.hop_limit, want_ack);
     if (flen < 0 || !g.tx) return false;
     bool ok = g.tx(frame, flen);
-    if (ok) g.tx_count++;
+    if (ok) { g.tx_count++; if (out_pid) *out_pid = pid; }
     return ok;
 }
 
-bool mtb_send_text(const char *text)
+bool mtb_send_text_to(uint32_t to_id, const char *text)
 {
     int n = (int)strlen(text);
     if (n > MSG_TEXT_MAX) n = MSG_TEXT_MAX;
-    bool ok = send_data(meshtastic_PortNum_TEXT_MESSAGE_APP, (const uint8_t *)text, n);
+    bool unicast = (to_id != MESH_BROADCAST);
+    uint32_t pid = 0;
+    bool ok = send_data(meshtastic_PortNum_TEXT_MESSAGE_APP, (const uint8_t *)text, n,
+                        to_id, unicast, &pid);
+    if (ok && unicast) {
+        g.ack_pending[g.ack_head] = pid;
+        g.ack_head = (g.ack_head + 1) % 16;
+    }
     if (ok && g.bus) {
         net_message_t m = {0};
-        m.kind = MSG_TEXT; m.from_id = g.my_node; m.outgoing = true;
+        m.kind = MSG_TEXT; m.from_id = g.my_node; m.to_id = to_id; m.id = pid; m.outgoing = true;
         memcpy(m.text, text, (size_t)n); m.text[n] = 0;
         eventbus_publish(g.bus, EV_MESSAGE_SENT, &m);
     }
     return ok;
 }
+
+bool mtb_send_text(const char *text) { return mtb_send_text_to(MESH_BROADCAST, text); }
 
 bool mtb_send_position(double lat, double lon, int32_t alt, uint32_t ts)
 {
@@ -172,7 +184,7 @@ bool mtb_send_position(double lat, double lon, int32_t alt, uint32_t ts)
     uint8_t payload[80];
     int pl = mt_position_encode(payload, sizeof payload, &p);
     if (pl < 0) return false;
-    return send_data(meshtastic_PortNum_POSITION_APP, payload, pl);
+    return send_data(meshtastic_PortNum_POSITION_APP, payload, pl, MESH_BROADCAST, false, NULL);
 }
 
 bool mtb_send_nodeinfo(void)
@@ -184,7 +196,7 @@ bool mtb_send_nodeinfo(void)
     uint8_t payload[128];
     int pl = mt_user_encode(payload, sizeof payload, &u);
     if (pl < 0) return false;
-    return send_data(meshtastic_PortNum_NODEINFO_APP, payload, pl);
+    return send_data(meshtastic_PortNum_NODEINFO_APP, payload, pl, MESH_BROADCAST, false, NULL);
 }
 
 /* --- RX ----------------------------------------------------------------- */
@@ -213,6 +225,18 @@ void mtb_on_frame(const uint8_t *frame, int len, float rssi, float snr, uint32_t
     node_record_t *node = nodedb_upsert(&g.db, hdr.from, now);
     node->snr = snr; node->rssi = (int16_t)rssi;
     g.rx_count++; g.last_rssi = rssi; g.last_snr = snr;
+
+    /* Delivery ack: a ROUTING reply carrying the request_id of one of our sends. */
+    if (d.portnum == meshtastic_PortNum_ROUTING_APP && d.request_id != 0) {
+        for (int i = 0; i < 16; i++) {
+            if (g.ack_pending[i] == d.request_id) {
+                uint32_t rid = d.request_id;
+                if (g.bus) eventbus_publish(g.bus, EV_MESSAGE_ACK, &rid);
+                g.ack_pending[i] = 0;
+                break;
+            }
+        }
+    }
 
     net_message_t m = {0};
     m.from_id = hdr.from; m.snr = snr; m.rssi = (int)rssi; m.when = now;

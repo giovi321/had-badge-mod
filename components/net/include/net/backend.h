@@ -46,7 +46,8 @@ void net_set_tx(net_tx_fn_t fn);
 void net_reload_config(void);
 void net_radio_cfg(net_radio_cfg_t *out);
 
-bool net_send_text(const char *text);
+bool net_send_text(const char *text);                       /* broadcast */
+bool net_send_text_to(uint32_t to_id, const char *text);    /* unicast (want_ack) */
 bool net_send_position(double lat, double lon, int32_t alt, uint32_t ts);
 bool net_send_nodeinfo(void);
 

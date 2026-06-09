@@ -10,6 +10,7 @@ void net_reload_config(void) { mtb_reload(); }
 void net_radio_cfg(net_radio_cfg_t *out) { mtb_radio_cfg(out); }
 
 bool net_send_text(const char *text) { return mtb_send_text(text); }
+bool net_send_text_to(uint32_t to_id, const char *text) { return mtb_send_text_to(to_id, text); }
 bool net_send_position(double lat, double lon, int32_t alt, uint32_t ts) { return mtb_send_position(lat, lon, alt, ts); }
 bool net_send_nodeinfo(void) { return mtb_send_nodeinfo(); }
 

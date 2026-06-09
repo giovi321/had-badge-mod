@@ -80,6 +80,12 @@ void app_manager_launch(int index)
     menubar_set_cell(4, "Back");   /* F5 = Back is always present in an app */
 }
 
+void app_manager_launch_app(const app_def_t *def)
+{
+    for (int i = 0; i < s_napps; i++)
+        if (s_apps[i] == def) { app_manager_launch(i); return; }
+}
+
 static void go_back(void)
 {
     /* Let the app pop an internal level first (Settings sub-menus); otherwise

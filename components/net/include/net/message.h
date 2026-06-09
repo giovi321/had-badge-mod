@@ -12,7 +12,10 @@ typedef enum { MSG_TEXT, MSG_POSITION, MSG_NODEINFO } msg_kind_t;
 typedef struct {
     msg_kind_t kind;
     uint32_t from_id;
+    uint32_t to_id;            /* recipient (BROADCAST for a broadcast) */
+    uint32_t id;              /* packet id (for ack matching) */
     bool outgoing;             /* true if we sent it */
+    bool delivered;            /* outgoing unicast acked */
     char text[MSG_TEXT_MAX + 1];
     double lat, lon;
     int32_t alt;
