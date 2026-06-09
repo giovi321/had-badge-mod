@@ -50,6 +50,15 @@ export default defineConfig({
             { label: 'Diagnostics', link: '/apps/diagnostics/' },
             { label: 'Settings', link: '/apps/settings/' },
             { label: 'GPS', link: '/apps/gps/' },
+            { label: 'Breadcrumbs and Follow', link: '/apps/breadcrumbs/' },
+            { label: 'Packets', link: '/apps/packets/' },
+          ],
+        },
+        {
+          label: 'Connectivity',
+          items: [
+            { label: 'WiFi and web UI', link: '/connectivity/wifi/' },
+            { label: 'Bluetooth', link: '/connectivity/bluetooth/' },
           ],
         },
         {

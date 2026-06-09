@@ -18,6 +18,13 @@ Incoming messages are added to the history as they arrive, even if the Messages 
 open. Use the Up and Down arrows to scroll the history. The input stays focused, so you can
 keep typing without leaving the scroll position.
 
+## Direct messages and acks
+
+By default messages go to the whole channel. To message one node, open the Nodes app, select
+a node, and press F1 or Enter. That sets the recipient and switches to Messages, which shows
+"To: <name>" at the top. Direct messages ask for a delivery acknowledgement, and when it
+comes back the sent bubble gets a check mark. Press F2 to switch back to broadcast.
+
 ## History across boots
 
 The chat history is saved to NVS and reloaded on boot. The number of messages kept is set by
