@@ -149,9 +149,13 @@ static void read_buffer(uint8_t offset, uint8_t *out, size_t n)
 
 static uint16_t get_irq(void)
 {
-    uint8_t tx[3] = { CMD_GET_IRQ_STATUS, 0, 0 }, rx[3] = {0};
-    rf_xfer(tx, rx, 3);
-    return (uint16_t)((rx[1] << 8) | rx[2]);
+    /* Get-commands return a status byte BEFORE the data: rx[0]=opcode echo,
+     * rx[1]=status, rx[2]=IrqStatus(15:8), rx[3]=IrqStatus(7:0). Reading rx[1:2]
+     * missed the low byte (where RX_DONE lives), so received packets were never
+     * recognised. */
+    uint8_t tx[4] = { CMD_GET_IRQ_STATUS, 0, 0, 0 }, rx[4] = {0};
+    rf_xfer(tx, rx, 4);
+    return (uint16_t)((rx[2] << 8) | rx[3]);
 }
 static void clear_irq(uint16_t mask)
 {
@@ -439,21 +443,20 @@ int radio_chip_read_packet(uint8_t *buf, int cap, float *rssi, float *snr)
         clear_irq(IRQ_ALL); return -1;
     }
 
-    uint8_t st[2] = {0};
-    uint8_t tx[3] = { CMD_GET_RX_BUFFER_STATUS, 0, 0 }, rx[3] = {0};
-    rf_xfer(tx, rx, 3);
-    int plen = rx[1];          /* payload length */
-    uint8_t ptr = rx[2];       /* rx start ptr  */
-    (void)st;
+    /* Leading status byte then data: rx[1]=status, rx[2]=payloadLen, rx[3]=ptr. */
+    uint8_t tx[4] = { CMD_GET_RX_BUFFER_STATUS, 0, 0, 0 }, rx[4] = {0};
+    rf_xfer(tx, rx, 4);
+    int plen = rx[2];          /* payload length */
+    uint8_t ptr = rx[3];       /* rx start ptr  */
     if (plen > cap) plen = cap;
     read_buffer(ptr, buf, (size_t)plen);
 
     if (rssi || snr) {
-        /* Full-duplex: ps_rx[0]=status, [1]=RssiPkt, [2]=SnrPkt, [3]=SignalRssiPkt. */
-        uint8_t ps_tx[4] = { CMD_GET_PACKET_STATUS, 0, 0, 0 }, ps_rx[4] = {0};
-        rf_xfer(ps_tx, ps_rx, 4);
-        if (rssi) *rssi = -((float)ps_rx[1]) / 2.0f;       /* RssiPkt */
-        if (snr)  *snr  = ((int8_t)ps_rx[2]) / 4.0f;        /* SnrPkt  */
+        /* rx[1]=status, [2]=RssiPkt, [3]=SnrPkt, [4]=SignalRssiPkt. */
+        uint8_t ps_tx[5] = { CMD_GET_PACKET_STATUS, 0, 0, 0, 0 }, ps_rx[5] = {0};
+        rf_xfer(ps_tx, ps_rx, 5);
+        if (rssi) *rssi = -((float)ps_rx[2]) / 2.0f;       /* RssiPkt */
+        if (snr)  *snr  = ((int8_t)ps_rx[3]) / 4.0f;        /* SnrPkt  */
     }
     clear_irq(IRQ_ALL);
     return plen;
