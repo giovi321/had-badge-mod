@@ -57,6 +57,9 @@ static void lcd_send_color(lv_display_t *disp, const uint8_t *cmd, size_t cmd_si
 
 static void tick_cb(void *arg) { (void)arg; lv_tick_inc(2); }
 
+/* Yielding delay for LVGL so init/runtime delays never busy-spin a core. */
+static void lv_delay_yield(uint32_t ms) { vTaskDelay(ms ? pdMS_TO_TICKS(ms) : 1); }
+
 static void reset_panel(void)
 {
     gpio_config_t io = {
@@ -105,6 +108,13 @@ esp_err_t display_init(void)
 
     if (!lv_is_initialized()) lv_init();
 
+    /* LVGL tick + a yielding delay MUST be live before lv_nv3007_create(): it
+     * runs the panel init sequence and calls lv_delay_ms() between commands. */
+    lv_delay_set_cb(lv_delay_yield);
+    esp_timer_create_args_t targs = { .callback = tick_cb, .name = "lv_tick" };
+    ESP_RETURN_ON_ERROR(esp_timer_create(&targs, &s_tick_timer), TAG, "tick timer");
+    ESP_RETURN_ON_ERROR(esp_timer_start_periodic(s_tick_timer, 2000), TAG, "tick start");
+
     /* 4. Create the LVGL NV3007 display. Native 142x428; rotate to 428x142. */
     s_disp = lv_nv3007_create(LCD_NATIVE_W, LCD_NATIVE_H, LV_LCD_FLAG_NONE,
                               lcd_send_cmd, lcd_send_color);
@@ -120,11 +130,6 @@ esp_err_t display_init(void)
     void *b2 = heap_caps_malloc(buf_bytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
     if (!b1 || !b2) { ESP_LOGE(TAG, "draw buffer alloc"); return ESP_ERR_NO_MEM; }
     lv_display_set_buffers(s_disp, b1, b2, buf_bytes, LV_DISPLAY_RENDER_MODE_PARTIAL);
-
-    /* 6. LVGL tick from a 2 ms esp_timer. */
-    esp_timer_create_args_t targs = { .callback = tick_cb, .name = "lv_tick" };
-    ESP_RETURN_ON_ERROR(esp_timer_create(&targs, &s_tick_timer), TAG, "tick timer");
-    ESP_RETURN_ON_ERROR(esp_timer_start_periodic(s_tick_timer, 2000), TAG, "tick start");
 
     ESP_LOGI(TAG, "NV3007 display up (428x142, rot270, gap 0/%d)", LCD_OFFSET_Y);
     return ESP_OK;
