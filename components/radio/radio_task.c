@@ -54,6 +54,7 @@ static void radio_task(void *arg)
             float rssi = 0, snr = 0;
             int n = radio_chip_read_packet(buf, sizeof buf, &rssi, &snr);
             if (n > 0) net_on_frame(buf, n, rssi, snr, (uint32_t)time(NULL));
+            else vTaskDelay(1);   /* spurious wake / DIO1 noise: yield, never spin a core */
             radio_chip_start_rx();
         }
     }

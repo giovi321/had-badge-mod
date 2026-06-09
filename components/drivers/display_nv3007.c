@@ -38,21 +38,21 @@ static bool on_color_done(esp_lcd_panel_io_handle_t io, esp_lcd_panel_io_event_d
     return false;
 }
 
-/* LVGL NV3007 driver callbacks -> esp_lcd panel IO. cmd is a 1-byte DCS command. */
+/* LVGL NV3007 driver callbacks -> esp_lcd panel IO. cmd is a 1-byte DCS command.
+ * Use the global s_io (not user_data): lv_nv3007_create() runs the init sequence
+ * *during* the create call, before user_data could be set. */
 static void lcd_send_cmd(lv_display_t *disp, const uint8_t *cmd, size_t cmd_size,
                          const uint8_t *param, size_t param_size)
 {
-    (void)cmd_size;
-    esp_lcd_panel_io_handle_t io = lv_display_get_user_data(disp);
-    esp_lcd_panel_io_tx_param(io, *cmd, param, param_size);
+    (void)disp; (void)cmd_size;
+    esp_lcd_panel_io_tx_param(s_io, *cmd, param, param_size);
 }
 
 static void lcd_send_color(lv_display_t *disp, const uint8_t *cmd, size_t cmd_size,
                            uint8_t *param, size_t param_size)
 {
-    (void)cmd_size;
-    esp_lcd_panel_io_handle_t io = lv_display_get_user_data(disp);
-    esp_lcd_panel_io_tx_color(io, *cmd, param, param_size);
+    (void)disp; (void)cmd_size;
+    esp_lcd_panel_io_tx_color(s_io, *cmd, param, param_size);
 }
 
 static void tick_cb(void *arg) { (void)arg; lv_tick_inc(2); }
