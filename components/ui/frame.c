@@ -42,3 +42,19 @@ void frame_set_title(frame_t *f, const char *title)
 {
     lv_label_set_text(f->title, title ? title : "");
 }
+
+static void scroll_key_cb(lv_event_t *e)
+{
+    lv_obj_t *c = lv_event_get_target(e);
+    uint32_t k = lv_event_get_key(e);
+    if (k == LV_KEY_UP)        lv_obj_scroll_by(c, 0, 26, LV_ANIM_ON);   /* older/up */
+    else if (k == LV_KEY_DOWN) lv_obj_scroll_by(c, 0, -26, LV_ANIM_ON);  /* newer/down */
+}
+
+void ui_scroll_focusable(lv_obj_t *cont, lv_group_t *group)
+{
+    lv_obj_add_flag(cont, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scroll_dir(cont, LV_DIR_VER);
+    lv_obj_add_event_cb(cont, scroll_key_cb, LV_EVENT_KEY, NULL);
+    if (group) lv_group_add_obj(group, cont);
+}

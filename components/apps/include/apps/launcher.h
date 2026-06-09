@@ -8,6 +8,7 @@
 typedef void (*launcher_select_cb)(int index);
 
 void launcher_build(lv_obj_t **screen, lv_group_t *group,
-                    const app_def_t *const *apps, int n, launcher_select_cb cb);
+                    const app_def_t *const *apps, int n, launcher_select_cb cb,
+                    int initial_focus);
 
 #endif /* APPS_LAUNCHER_H */

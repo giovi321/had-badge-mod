@@ -62,3 +62,9 @@ void menubar_set_labels(const char *l1, const char *l2, const char *l3,
     for (int i = 0; i < FKEY_COUNT; i++)
         lv_label_set_text(s_label[i], labels[i] ? labels[i] : "");
 }
+
+void menubar_set_cell(int i, const char *text)
+{
+    if (i < 0 || i >= FKEY_COUNT) return;
+    lv_label_set_text(s_label[i], text ? text : "");
+}

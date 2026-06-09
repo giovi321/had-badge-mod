@@ -16,4 +16,8 @@ typedef struct {
 void frame_create(frame_t *f, const char *title);
 void frame_set_title(frame_t *f, const char *title);
 
+/* Make a container vertically scrollable by Up/Down when focused, and add it to
+ * the focus group. For label-only views (no focusable child widgets). */
+void ui_scroll_focusable(lv_obj_t *cont, lv_group_t *group);
+
 #endif /* UI_FRAME_H */

@@ -80,7 +80,7 @@ void app_main(void)
     mesh_svc_init(&s_settings);
 
     /* 6. Apps + UI. */
-    messages_init(&s_bus);
+    messages_init(&s_bus, &s_settings);
     settings_app_init(&s_settings);
     app_manager_init(&s_bus);
     status_svc_init(&s_settings);

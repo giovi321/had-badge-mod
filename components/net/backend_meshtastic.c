@@ -61,6 +61,8 @@ static struct {
     char device_name[48], short_name[16];
     nodedb_t db;
     dedup_t dd;
+    uint32_t rx_count, tx_count;
+    float last_rssi, last_snr;
 } g;
 
 void mtb_register_settings(settings_t *st)
@@ -141,7 +143,9 @@ static bool send_data(int portnum, const uint8_t *payload, int payload_len)
                                  g.channel, g.psk, (size_t)g.psk_len, data, (size_t)dlen,
                                  g.hop_limit, g.hop_limit, false);
     if (flen < 0 || !g.tx) return false;
-    return g.tx(frame, flen);
+    bool ok = g.tx(frame, flen);
+    if (ok) g.tx_count++;
+    return ok;
 }
 
 bool mtb_send_text(const char *text)
@@ -208,6 +212,7 @@ void mtb_on_frame(const uint8_t *frame, int len, float rssi, float snr, uint32_t
 
     node_record_t *node = nodedb_upsert(&g.db, hdr.from, now);
     node->snr = snr; node->rssi = (int16_t)rssi;
+    g.rx_count++; g.last_rssi = rssi; g.last_snr = snr;
 
     net_message_t m = {0};
     m.from_id = hdr.from; m.snr = snr; m.rssi = (int)rssi; m.when = now;
@@ -252,3 +257,21 @@ uint32_t mtb_my_node(void) { return g.my_node; }
 const char *mtb_channel(void) { return g.channel; }
 int mtb_peers(void) { return g.db.count; }
 nodedb_t *mtb_nodedb(void) { return &g.db; }
+
+void mtb_diag(net_diag_t *out)
+{
+    out->node = g.my_node;
+    snprintf(out->region, sizeof out->region, "%s", g.region);
+    snprintf(out->preset, sizeof out->preset, "%s", g.preset);
+    snprintf(out->channel, sizeof out->channel, "%s", g.channel);
+    out->freq_mhz = g.freq;
+    out->sf = g.sf;
+    out->sync_word = MESH_SYNC_WORD;
+    out->hop_limit = g.hop_limit;
+    out->relay = g.rebroadcast;
+    out->peers = g.db.count;
+    out->rx_count = g.rx_count;
+    out->tx_count = g.tx_count;
+    out->last_rssi = g.last_rssi;
+    out->last_snr = g.last_snr;
+}

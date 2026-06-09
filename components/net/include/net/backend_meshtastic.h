@@ -19,5 +19,6 @@ uint32_t mtb_my_node(void);
 const char *mtb_channel(void);
 int mtb_peers(void);
 nodedb_t *mtb_nodedb(void);
+void mtb_diag(net_diag_t *out);
 
 #endif /* NET_BACKEND_MESHTASTIC_H */

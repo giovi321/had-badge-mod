@@ -21,9 +21,11 @@ const app_def_t *app_messages(void);
 const app_def_t *app_nodes(void);
 const app_def_t *app_settings(void);
 const app_def_t *app_gps(void);
+const app_def_t *app_diag(void);
 
-/* Subscribe the messages app to the event bus (call once at boot). */
-void messages_init(eventbus_t *bus);
+/* Subscribe the messages app to the event bus + load saved history (call once
+ * at boot). */
+void messages_init(eventbus_t *bus, settings_t *settings);
 
 /* Give the settings app access to the registry (call once at boot). */
 void settings_app_init(settings_t *reg);

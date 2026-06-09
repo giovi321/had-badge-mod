@@ -14,6 +14,7 @@ typedef struct {
 typedef void (*strip_select_cb)(int index, void *ctx);
 
 lv_obj_t *launcher_strip_create(lv_obj_t *parent, const strip_item_t *items, int n,
-                                strip_select_cb cb, void *ctx, lv_group_t *group);
+                                strip_select_cb cb, void *ctx, lv_group_t *group,
+                                int initial_focus);
 
 #endif /* UI_LAUNCHER_STRIP_H */

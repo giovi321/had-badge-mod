@@ -20,6 +20,26 @@ typedef struct {
 
 typedef bool (*net_tx_fn_t)(const uint8_t *frame, int len);
 
+/* Snapshot of mesh diagnostics for the Diagnostics app / WebUI. */
+typedef struct {
+    uint32_t node;
+    char region[16];
+    char preset[16];
+    char channel[24];
+    double freq_mhz;
+    int sf;
+    int sync_word;
+    int hop_limit;
+    bool relay;
+    int peers;
+    uint32_t rx_count;
+    uint32_t tx_count;
+    float last_rssi;
+    float last_snr;
+} net_diag_t;
+
+void net_diag(net_diag_t *out);
+
 void net_init(settings_t *settings, eventbus_t *bus, uint32_t my_node);
 void net_register_settings(settings_t *settings);  /* schema only (call early) */
 void net_set_tx(net_tx_fn_t fn);

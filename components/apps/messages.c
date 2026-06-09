@@ -10,12 +10,15 @@
 #include "ui/colors.h"
 #include "ui/menubar.h"
 #include "net/backend.h"
+#include "core/settings.h"
 #include "app_config.h"
 
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "nvs.h"
 
 #define CONTENT_W_70 280   /* ~70% of the 400px content width */
 
@@ -24,6 +27,26 @@ static net_message_t s_hist[MSG_HISTORY_MAX];
 static int s_hist_n;
 static lv_obj_t *s_list, *s_input;
 static bool s_active;
+static settings_t *s_settings;
+static bool s_dirty;            /* history changed since last NVS save */
+static int s_save_throttle;     /* bg-tick counter to debounce NVS writes */
+
+/* Compact persisted record (NVS blob), independent of the in-RAM struct. */
+typedef struct {
+    uint32_t from;
+    uint8_t outgoing;
+    uint32_t when;
+    char name[24];
+    char text[MSG_TEXT_MAX + 1];
+} msg_rec_t;
+#define MSG_BLOB_MAGIC 0x31474d43u  /* "CMG1" */
+
+static const setting_t MSG_SCHEMA[] = {
+    {.key = "msg_keep", .type = SET_INT, .def = "50", .label = "Saved messages",
+     .group = "Messages", .minv = 0, .maxv = MSG_HISTORY_MAX, .has_min = true, .has_max = true},
+};
+
+static void add_bubble(const net_message_t *m);   /* defined below */
 
 static void hist_push(const net_message_t *m)
 {
@@ -44,11 +67,106 @@ static void on_event(eb_event_t ev, const void *payload, void *ctx)
     if (s_pending) xQueueSend(s_pending, m, 0);
 }
 
-void messages_init(eventbus_t *bus)
+/* --- persistence (NVS "msgs"/"hist") ------------------------------------ */
+static void msg_save(void)
 {
+    int keep = s_settings ? (int)settings_get_int(s_settings, "msg_keep") : 0;
+    if (keep < 0) keep = 0;
+    if (keep > s_hist_n) keep = s_hist_n;
+    int start = s_hist_n - keep;
+
+    size_t blob = 6 + (size_t)keep * sizeof(msg_rec_t);
+    uint8_t *buf = malloc(blob);
+    if (!buf) return;
+    uint8_t *p = buf;
+    p[0] = (uint8_t)MSG_BLOB_MAGIC;        p[1] = (uint8_t)(MSG_BLOB_MAGIC >> 8);
+    p[2] = (uint8_t)(MSG_BLOB_MAGIC >> 16); p[3] = (uint8_t)(MSG_BLOB_MAGIC >> 24);
+    p[4] = (uint8_t)keep; p[5] = (uint8_t)(keep >> 8);
+    p += 6;
+    for (int i = 0; i < keep; i++) {
+        const net_message_t *m = &s_hist[start + i];
+        msg_rec_t r;
+        memset(&r, 0, sizeof r);
+        r.from = m->from_id; r.outgoing = m->outgoing ? 1 : 0; r.when = m->when;
+        snprintf(r.name, sizeof r.name, "%s", m->long_name[0] ? m->long_name : m->short_name);
+        snprintf(r.text, sizeof r.text, "%s", m->text);
+        memcpy(p, &r, sizeof r);
+        p += sizeof r;
+    }
+    nvs_handle_t h;
+    if (nvs_open("msgs", NVS_READWRITE, &h) == ESP_OK) {
+        nvs_set_blob(h, "hist", buf, blob);
+        nvs_commit(h);
+        nvs_close(h);
+    }
+    free(buf);
+}
+
+static void msg_load(void)
+{
+    int keep = s_settings ? (int)settings_get_int(s_settings, "msg_keep") : 0;
+    if (keep <= 0) return;
+    nvs_handle_t h;
+    if (nvs_open("msgs", NVS_READONLY, &h) != ESP_OK) return;
+    size_t blob = 0;
+    if (nvs_get_blob(h, "hist", NULL, &blob) != ESP_OK || blob < 6) { nvs_close(h); return; }
+    uint8_t *buf = malloc(blob);
+    if (!buf) { nvs_close(h); return; }
+    if (nvs_get_blob(h, "hist", buf, &blob) != ESP_OK) { free(buf); nvs_close(h); return; }
+    nvs_close(h);
+
+    uint8_t *p = buf;
+    uint32_t magic = p[0] | (p[1] << 8) | (p[2] << 16) | ((uint32_t)p[3] << 24);
+    int count = p[4] | (p[5] << 8);
+    p += 6;
+    if (magic == MSG_BLOB_MAGIC) {
+        if (6 + (size_t)count * sizeof(msg_rec_t) > blob) count = (int)((blob - 6) / sizeof(msg_rec_t));
+        if (count > MSG_HISTORY_MAX) count = MSG_HISTORY_MAX;
+        s_hist_n = 0;
+        for (int i = 0; i < count; i++) {
+            msg_rec_t r;
+            memcpy(&r, p, sizeof r);
+            p += sizeof r;
+            net_message_t *m = &s_hist[s_hist_n++];
+            memset(m, 0, sizeof *m);
+            m->kind = MSG_TEXT; m->from_id = r.from; m->outgoing = r.outgoing; m->when = r.when;
+            snprintf(m->long_name, sizeof m->long_name, "%s", r.name);
+            snprintf(m->text, sizeof m->text, "%s", r.text);
+        }
+    }
+    free(buf);
+}
+
+/* Background drain: runs in the UI task whether or not the app is open, so
+ * incoming messages are recorded (and persisted) even from other screens. */
+static void msg_bg_tick(lv_timer_t *t)
+{
+    (void)t;
+    net_message_t m;
+    bool changed = false;
+    while (s_pending && xQueueReceive(s_pending, &m, 0) == pdTRUE) {
+        hist_push(&m);
+        if (s_active) add_bubble(&m);
+        s_dirty = true;
+        changed = true;
+    }
+    if (changed && s_active) lv_obj_scroll_to_y(s_list, LV_COORD_MAX, LV_ANIM_ON);
+    if (s_dirty && ++s_save_throttle >= 12) {   /* ~ every 5 s */
+        msg_save();
+        s_dirty = false;
+        s_save_throttle = 0;
+    }
+}
+
+void messages_init(eventbus_t *bus, settings_t *settings)
+{
+    s_settings = settings;
+    if (settings) settings_register_many(settings, MSG_SCHEMA, 1);
     s_pending = xQueueCreate(12, sizeof(net_message_t));
     eventbus_subscribe(bus, EV_MESSAGE_RECEIVED, on_event, NULL);
     eventbus_subscribe(bus, EV_MESSAGE_SENT, on_event, NULL);
+    msg_load();
+    lv_timer_create(msg_bg_tick, 400, NULL);
 }
 
 static void add_bubble(const net_message_t *m)
@@ -99,6 +217,14 @@ static void input_cb(lv_event_t *e)
     if (lv_event_get_code(e) == LV_EVENT_READY) send_current();  /* Enter in one-line mode */
 }
 
+/* Up/Down scroll the chat history while the input stays focused for typing. */
+static void msg_key_cb(lv_event_t *e)
+{
+    uint32_t k = lv_event_get_key(e);
+    if (k == LV_KEY_UP)        lv_obj_scroll_by(s_list, 0, 40, LV_ANIM_ON);   /* older */
+    else if (k == LV_KEY_DOWN) lv_obj_scroll_by(s_list, 0, -40, LV_ANIM_ON);  /* newer */
+}
+
 static void build(lv_obj_t **screen, lv_group_t *group)
 {
     static frame_t f;
@@ -121,31 +247,29 @@ static void build(lv_obj_t **screen, lv_group_t *group)
     lv_obj_set_width(s_input, LV_PCT(100));
     lv_obj_add_style(s_input, &st_input, 0);
     lv_obj_add_event_cb(s_input, input_cb, LV_EVENT_READY, NULL);
+    lv_obj_add_event_cb(s_input, msg_key_cb, LV_EVENT_KEY, NULL);
     lv_group_add_obj(group, s_input);
     lv_group_focus_obj(s_input);
 
     *screen = f.screen;
     render_history();
+    lv_obj_scroll_to_y(s_list, LV_COORD_MAX, LV_ANIM_OFF);
     menubar_set_labels("Send", "", "", "", "");
     s_active = true;
 }
 
-static void tick(void)
-{
-    net_message_t m;
-    bool changed = false;
-    while (s_pending && xQueueReceive(s_pending, &m, 0) == pdTRUE) { hist_push(&m); if (s_active) add_bubble(&m); changed = true; }
-    if (changed && s_active) lv_obj_scroll_to_y(s_list, LV_COORD_MAX, LV_ANIM_ON);
-}
-
 static void on_fkey(int n) { if (n == 1) send_current(); }
-static void close(void) { s_active = false; }
+static void close(void)
+{
+    s_active = false;
+    if (s_dirty) { msg_save(); s_dirty = false; s_save_throttle = 0; }
+}
 
 const app_def_t *app_messages(void)
 {
     static const app_def_t def = {
         .name = "Messages", .icon = LV_SYMBOL_ENVELOPE,
-        .build = build, .on_fkey = on_fkey, .tick = tick, .close = close,
+        .build = build, .on_fkey = on_fkey, .close = close,
     };
     return &def;
 }

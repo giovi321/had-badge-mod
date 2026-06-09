@@ -35,9 +35,11 @@ static void tile_event(lv_event_t *e)
 }
 
 lv_obj_t *launcher_strip_create(lv_obj_t *parent, const strip_item_t *items, int n,
-                                strip_select_cb cb, void *ctx, lv_group_t *group)
+                                strip_select_cb cb, void *ctx, lv_group_t *group,
+                                int initial_focus)
 {
     s_cb = cb; s_ctx = ctx; s_group = group;
+    lv_obj_t *focus_tile = NULL;
 
     lv_obj_t *strip = lv_obj_create(parent);
     lv_obj_set_size(strip, LV_PCT(100), LV_PCT(100));
@@ -81,6 +83,11 @@ lv_obj_t *launcher_strip_create(lv_obj_t *parent, const strip_item_t *items, int
 
         lv_obj_add_event_cb(tile, tile_event, LV_EVENT_ALL, NULL);
         if (group) lv_group_add_obj(group, tile);
+        if (i == initial_focus) focus_tile = tile;
+    }
+    if (focus_tile && group) {
+        lv_group_focus_obj(focus_tile);
+        lv_obj_scroll_to_view(focus_tile, LV_ANIM_OFF);
     }
     return strip;
 }

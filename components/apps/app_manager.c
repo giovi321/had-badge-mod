@@ -17,6 +17,7 @@ static lv_group_t *s_group;
 static lv_indev_t *s_indev;
 static lv_obj_t *s_screen;
 static int s_current = -1;   /* -1 = launcher home */
+static int s_home_focus = 0; /* remember which launcher tile was selected */
 
 /* LVGL keypad indev: emit each queued key as a press then a release. */
 static void kp_read(lv_indev_t *indev, lv_indev_data_t *data)
@@ -60,7 +61,7 @@ void app_manager_go_home(void)
     s_current = -1;
     lv_group_remove_all_objs(s_group);
     lv_obj_t *scr = NULL;
-    launcher_build(&scr, s_group, s_apps, s_napps, on_launch);
+    launcher_build(&scr, s_group, s_apps, s_napps, on_launch, s_home_focus);
     load_screen(scr);
 }
 
@@ -69,10 +70,12 @@ void app_manager_launch(int index)
     if (index < 0 || index >= s_napps) return;
     if (s_current >= 0 && s_apps[s_current]->close) s_apps[s_current]->close();
     s_current = index;
+    s_home_focus = index;          /* land back here when we return home */
     lv_group_remove_all_objs(s_group);
     lv_obj_t *scr = NULL;
     s_apps[index]->build(&scr, s_group);
     if (scr) load_screen(scr);
+    menubar_set_cell(4, "Back");   /* F5 = Back is always present in an app */
 }
 
 static void manager_tick(lv_timer_t *t)
@@ -84,6 +87,7 @@ static void manager_tick(lv_timer_t *t)
     for (int n = 1; n <= 5; n++) {
         if (!keyboard_f_pressed(n)) continue;
         if (s_current >= 0) {
+            if (n == 5) { app_manager_go_home(); return; }   /* F5 = Back, always */
             if (s_apps[s_current]->on_fkey) s_apps[s_current]->on_fkey(n);
         } else if (n == 3) {  /* home: F3 = Open focused tile */
             lv_obj_t *f = lv_group_get_focused(s_group);
@@ -99,8 +103,9 @@ void app_manager_init(eventbus_t *bus)
     s_apps[0] = app_messages();
     s_apps[1] = app_nodes();
     s_apps[2] = app_settings();
-    s_apps[3] = app_gps();
-    s_napps = 4;
+    s_apps[3] = app_diag();
+    s_apps[4] = app_gps();
+    s_napps = 5;
 
     s_group = lv_group_create();
     lv_group_set_default(s_group);
