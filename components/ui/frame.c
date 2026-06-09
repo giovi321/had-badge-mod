@@ -47,8 +47,16 @@ static void scroll_key_cb(lv_event_t *e)
 {
     lv_obj_t *c = lv_event_get_target(e);
     uint32_t k = lv_event_get_key(e);
-    if (k == LV_KEY_UP)        lv_obj_scroll_by(c, 0, 26, LV_ANIM_ON);   /* older/up */
-    else if (k == LV_KEY_DOWN) lv_obj_scroll_by(c, 0, -26, LV_ANIM_ON);  /* newer/down */
+    /* Clamp to the content: scroll only as far as there is content to reveal, so
+     * the view stops dead at the top and bottom (lv_obj_scroll_by does not bound
+     * itself, which is what made it run past the ends). */
+    if (k == LV_KEY_UP) {
+        int32_t avail = lv_obj_get_scroll_top(c);
+        if (avail > 0) lv_obj_scroll_by(c, 0, LV_MIN(26, avail), LV_ANIM_OFF);
+    } else if (k == LV_KEY_DOWN) {
+        int32_t avail = lv_obj_get_scroll_bottom(c);
+        if (avail > 0) lv_obj_scroll_by(c, 0, -LV_MIN(26, avail), LV_ANIM_OFF);
+    }
 }
 
 void ui_scroll_focusable(lv_obj_t *cont, lv_group_t *group)

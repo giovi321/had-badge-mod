@@ -294,8 +294,14 @@ static void input_cb(lv_event_t *e)
 static void msg_key_cb(lv_event_t *e)
 {
     uint32_t k = lv_event_get_key(e);
-    if (k == LV_KEY_UP)        lv_obj_scroll_by(s_list, 0, 40, LV_ANIM_ON);   /* older */
-    else if (k == LV_KEY_DOWN) lv_obj_scroll_by(s_list, 0, -40, LV_ANIM_ON);  /* newer */
+    /* Clamp at the ends of the history instead of scrolling indefinitely. */
+    if (k == LV_KEY_UP) {
+        int32_t avail = lv_obj_get_scroll_top(s_list);
+        if (avail > 0) lv_obj_scroll_by(s_list, 0, LV_MIN(40, avail), LV_ANIM_OFF);
+    } else if (k == LV_KEY_DOWN) {
+        int32_t avail = lv_obj_get_scroll_bottom(s_list);
+        if (avail > 0) lv_obj_scroll_by(s_list, 0, -LV_MIN(40, avail), LV_ANIM_OFF);
+    }
 }
 
 static void build(lv_obj_t **screen, lv_group_t *group)
