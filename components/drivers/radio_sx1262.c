@@ -46,6 +46,7 @@ static const char *TAG = "sx1262";
 #define CMD_GET_PACKET_STATUS    0x14
 #define CMD_GET_STATUS           0xC0
 #define CMD_GET_DEVICE_ERRORS    0x17
+#define CMD_CLEAR_DEVICE_ERRORS  0x07
 
 /* IRQ bits */
 #define IRQ_TX_DONE      0x0001
@@ -300,12 +301,27 @@ esp_err_t radio_chip_init(const radio_params_t *p)
 
     radio_chip_standby();
 
-    /* TCXO on DIO3 @1.7V (code 0x01), ~5ms ready delay, then recalibrate. */
+    /* Clear any power-on XOSC start error before bringing up the TCXO, as the
+     * reference driver does. */
+    uint8_t clr[2] = { 0, 0 };
+    cmd(CMD_CLEAR_DEVICE_ERRORS, clr, 2);
+
+    /* TCXO on DIO3 @1.7V (code 0x01), ~5ms ready delay. Let it stabilise BEFORE
+     * calibrating: the previous code calibrated immediately, before the TCXO was
+     * ready, which left calibration/PLL errors set and the radio effectively
+     * deaf. */
     uint8_t tcxo[4] = { 0x01, 0x00, 0x01, 0x40 }; /* voltage, delay(23:0)=0x000140=5ms */
     cmd(CMD_SET_DIO3_TCXO, tcxo, 4);
-    uint8_t calall = 0x7F; cmd(CMD_CALIBRATE, &calall, 1);
-    esp_rom_delay_us(5000);
+    esp_rom_delay_us(10000);
     wait_busy();
+
+    uint8_t calall = 0x7F; cmd(CMD_CALIBRATE, &calall, 1);
+    esp_rom_delay_us(10000);
+    wait_busy();
+
+    /* The crystal-start attempt during bring-up sets XOSC_START_ERR; clear it so
+     * the chip is not left in an error state (matches the old driver). */
+    cmd(CMD_CLEAR_DEVICE_ERRORS, clr, 2);
 
     uint8_t lora = PACKET_TYPE_LORA; cmd(CMD_SET_PACKET_TYPE, &lora, 1);
     uint8_t dcdc = 0x01; cmd(CMD_SET_REGULATOR_MODE, &dcdc, 1);
@@ -327,19 +343,19 @@ esp_err_t radio_chip_init(const radio_params_t *p)
     ESP_LOGI(TAG, "SX1262 up: %.3f MHz SF%d BW%.0f CR4/%d sync 0x%02X pwr %ddBm",
              s_p.freq_mhz, s_p.sf, s_p.bw_khz, s_p.cr, s_p.sync_word, s_p.power_dbm);
 
-    /* Self-test: confirm the chip is healthy and our config actually reached it. */
+    /* Self-test: confirm the chip is healthy and our config actually reached it.
+     * devErr is logged as raw response bytes (offset is chip-revision sensitive);
+     * all-zero means no calibration/PLL/XOSC faults remain. */
     {
         uint8_t gs_tx[2] = { CMD_GET_STATUS, 0 }, gs_rx[2] = {0};
         rf_xfer(gs_tx, gs_rx, 2);
-        uint8_t ge_tx[3] = { CMD_GET_DEVICE_ERRORS, 0, 0 }, ge_rx[3] = {0};
-        rf_xfer(ge_tx, ge_rx, 3);
-        uint16_t errs = (uint16_t)((ge_rx[1] << 8) | ge_rx[2]);
+        uint8_t ge_tx[4] = { CMD_GET_DEVICE_ERRORS, 0, 0, 0 }, ge_rx[4] = {0};
+        rf_xfer(ge_tx, ge_rx, 4);
         uint8_t sync[2] = {0}, iq = 0;
         read_reg(REG_LORA_SYNC_WORD_MSB, sync, 2);
         read_reg(REG_IQ_CONFIG, &iq, 1);
-        ESP_LOGI(TAG, "selftest: status %02X/%02X errors 0x%04X sync %02X%02X(want 24B4) iq %02X(bit2 want 0)",
-                 gs_rx[0], gs_rx[1], errs, sync[0], sync[1], iq);
-        if (errs) ESP_LOGW(TAG, "SX1262 device errors set: 0x%04X", errs);
+        ESP_LOGI(TAG, "selftest: status %02X/%02X devErr %02X %02X %02X sync %02X%02X(want 24B4) iq %02X(bit2 want 0)",
+                 gs_rx[0], gs_rx[1], ge_rx[1], ge_rx[2], ge_rx[3], sync[0], sync[1], iq);
     }
     return ESP_OK;
 }
