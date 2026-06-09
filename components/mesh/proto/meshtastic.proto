@@ -1,0 +1,58 @@
+// Curated subset of the official meshtastic/protobufs used by this firmware.
+//
+// Field numbers and wire types are pinned to upstream mesh.proto / portnums.proto
+// so packets interoperate byte-for-byte with stock Meshtastic. Enum-typed fields
+// (location_source, hw_model, role) are modelled as int32/uint32 here — identical
+// on the wire (varint) — to avoid pulling in the full enum trees. Only the
+// messages this badge sends/receives are included: Data, Position, User.
+syntax = "proto3";
+
+package meshtastic;
+
+// portnums.proto (subset)
+enum PortNum {
+  UNKNOWN_APP = 0;
+  TEXT_MESSAGE_APP = 1;
+  POSITION_APP = 3;
+  NODEINFO_APP = 4;
+  ROUTING_APP = 5;
+  ADMIN_APP = 6;
+  TELEMETRY_APP = 67;
+  TRACEROUTE_APP = 70;
+}
+
+// mesh.proto: Data — the decrypted payload of every MeshPacket.
+message Data {
+  PortNum portnum = 1;
+  bytes payload = 2;
+  bool want_response = 3;
+  fixed32 dest = 4;
+  fixed32 source = 5;
+  fixed32 request_id = 6;
+  fixed32 reply_id = 7;
+  fixed32 emoji = 8;
+}
+
+// mesh.proto: Position (POSITION_APP payload).
+message Position {
+  sfixed32 latitude_i = 1;   // degrees * 1e7
+  sfixed32 longitude_i = 2;  // degrees * 1e7
+  int32 altitude = 3;        // metres MSL
+  fixed32 time = 4;          // unix seconds
+  int32 location_source = 5; // LocSource enum (varint)
+  uint32 ground_speed = 15;
+  uint32 ground_track = 16;  // 1/100 degree
+  uint32 sats_in_view = 19;
+  uint32 precision_bits = 23;
+}
+
+// mesh.proto: User (NODEINFO_APP payload).
+message User {
+  string id = 1;          // "!aabbccdd"
+  string long_name = 2;
+  string short_name = 3;
+  bytes macaddr = 4;
+  int32 hw_model = 5;     // HardwareModel enum (varint)
+  bool is_licensed = 6;
+  int32 role = 7;         // DeviceRole enum (varint)
+}

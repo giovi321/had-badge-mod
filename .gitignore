@@ -1,0 +1,27 @@
+# Upstream reference clone (kept locally, not part of this repo)
+/upstream/
+
+# Local agent/editor state
+/.claude/
+.vscode/
+.idea/
+
+# ESP-IDF build output + per-developer config
+/build/
+/managed_components/
+sdkconfig
+sdkconfig.old
+dependencies.lock
+
+# Host test build
+/build-host/
+
+# Firmware images
+*.bin
+
+# Python / tooling
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/

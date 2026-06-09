@@ -1,0 +1,9 @@
+# Normalize line endings to LF (MicroPython source synced to the badge).
+* text=auto eol=lf
+
+# Binary assets — never normalize.
+*.png binary
+*.jpg binary
+*.bin binary
+*.der binary
+*.pdf binary

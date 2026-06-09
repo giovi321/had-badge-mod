@@ -1,0 +1,44 @@
+# Default project configuration for the Communicator badge (ESP32-S3 N16R8).
+# Override per-developer in sdkconfig (generated, gitignored).
+
+CONFIG_IDF_TARGET="esp32s3"
+
+# --- Flash (16 MB) + custom partition table -------------------------------
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# --- PSRAM (octal, N16R8) -------------------------------------------------
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_OCT=y
+CONFIG_SPIRAM_SPEED_80M=y
+CONFIG_SPIRAM_USE_MALLOC=y
+CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP=y
+
+# --- CPU + power management (light sleep / DFS) ---------------------------
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+CONFIG_PM_ENABLE=y
+CONFIG_PM_DFS_INIT_AUTO=y
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=y
+CONFIG_PM_SLP_IRAM_OPT=y
+
+# --- LVGL 9 (managed component lvgl/lvgl) ---------------------------------
+CONFIG_LV_COLOR_DEPTH_16=y
+CONFIG_LV_COLOR_16_SWAP=n
+CONFIG_LV_USE_OS=0
+CONFIG_LV_MEM_SIZE_KILOBYTES=64
+CONFIG_LV_USE_PERF_MONITOR=n
+CONFIG_LV_FONT_MONTSERRAT_14=y
+CONFIG_LV_FONT_MONTSERRAT_18=y
+CONFIG_LV_FONT_DEFAULT_MONTSERRAT_14=y
+# NV3007 panel driver (built into LVGL 9.4+). If this Kconfig symbol is absent
+# in your LVGL version, set `#define LV_USE_NV3007 1` in an lv_conf override.
+CONFIG_LV_USE_NV3007=y
+CONFIG_LV_USE_GENERIC_MIPI=y
+
+# --- Misc -----------------------------------------------------------------
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=6144
+CONFIG_FREERTOS_HZ=1000

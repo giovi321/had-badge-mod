@@ -1,0 +1,5 @@
+## Managed component dependencies (fetched by the IDF component manager on build).
+dependencies:
+  idf: ">=5.1"
+  # 9.4+ ships the built-in NV3007 display driver (lv_nv3007_create).
+  lvgl/lvgl: "^9.4.0"
