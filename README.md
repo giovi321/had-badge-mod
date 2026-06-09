@@ -84,8 +84,9 @@ The on-air format is implemented directly and verified against real Meshtastic c
 
 ## Build & flash
 
-Requires [ESP-IDF **5.1+**](https://docs.espressif.com/projects/esp-idf/). LVGL and nanopb
-runtime are fetched/vendored automatically.
+Requires [ESP-IDF **5.1+**](https://docs.espressif.com/projects/esp-idf/) (build verified on
+**6.2**). LVGL (managed component) and the nanopb runtime (vendored) are pulled in
+automatically.
 
 ```bash
 idf.py set-target esp32s3
@@ -93,8 +94,11 @@ idf.py build
 idf.py -p <PORT> flash monitor
 ```
 
-`sdkconfig.defaults` enables 16 MB flash, octal PSRAM, light sleep, and the LVGL NV3007
-driver. The partition table is [`partitions.csv`](partitions.csv).
+`sdkconfig.defaults` enables 16 MB flash, octal PSRAM, and light sleep. The LVGL NV3007
+driver isn't exposed via the LVGL component's Kconfig, so it's enabled build-wide with
+`-DCONFIG_LV_USE_NV3007=1` in the top-level `CMakeLists.txt` (no action needed). The
+partition table is [`partitions.csv`](partitions.csv). A clean `idf.py build` produces a
+~676 KB app (78% of the factory partition free).
 
 ## Host tests (no hardware)
 
