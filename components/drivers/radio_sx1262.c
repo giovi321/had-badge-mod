@@ -57,6 +57,8 @@ static const char *TAG = "sx1262";
 
 /* Registers */
 #define REG_LORA_SYNC_WORD_MSB 0x0740
+#define REG_IQ_CONFIG          0x0736   /* errata 15.4: bit 2 = inverted-IQ optimisation */
+#define IQ_OPTIM_BIT           0x04
 #define REG_OCP                0x08E7
 #define REG_TX_CLAMP           0x08D8
 #define REG_SENSITIVITY        0x0889
@@ -190,6 +192,16 @@ static void set_modulation(void)
 
 static void set_packet_params(uint8_t payload_len)
 {
+    /* SX126x datasheet errata 15.4 ("Optimizing the Inverted IQ Operation"):
+     * the chip powers up with the inverted-IQ optimisation engaged (bit 2 of
+     * reg 0x0736 set). For STANDARD IQ that bit MUST be cleared or standard-IQ
+     * LoRa frames never demodulate, which is why receive was completely dead.
+     * The reference driver applies this on every setPacketParams(); do the same. */
+    uint8_t iq = 0;
+    read_reg(REG_IQ_CONFIG, &iq, 1);
+    iq &= (uint8_t)~IQ_OPTIM_BIT;   /* IQ_STANDARD: clear bit 2 */
+    write_reg(REG_IQ_CONFIG, &iq, 1);
+
     uint8_t p[6] = {
         (uint8_t)(s_p.preamble >> 8), (uint8_t)(s_p.preamble & 0xFF),
         HEADER_EXPLICIT, payload_len, CRC_ON, IQ_STANDARD
@@ -200,9 +212,11 @@ static void set_packet_params(uint8_t payload_len)
 static void set_frequency(double mhz)
 {
     uint32_t frf = (uint32_t)((mhz * FREQ_DIV) / (XTAL_HZ / 1000000.0));
-    /* image calibration band select */
-    uint8_t cal[2] = { 0xD7, 0xDB };       /* 902-928 default */
-    if (mhz <= 900.0) { cal[0] = 0xD7; cal[1] = 0xD8; } /* 863-870 */
+    /* Image calibration band select (datasheet table 9-2). The previous 863-870
+     * pair {0xD7,0xD8} used an undefined freq2 code (0xD8) and cost sensitivity. */
+    uint8_t cal[2] = { 0xE1, 0xE9 };                              /* 902-928 MHz */
+    if (mhz <= 440.0)      { cal[0] = 0x6B; cal[1] = 0x6F; }      /* 430-440 MHz */
+    else if (mhz <= 900.0) { cal[0] = 0xD7; cal[1] = 0xDB; }      /* 863-870 MHz */
     cmd(CMD_CALIBRATE_IMAGE, cal, 2);
     uint8_t p[4] = { frf >> 24, frf >> 16, frf >> 8, frf };
     cmd(CMD_SET_RF_FREQUENCY, p, 4);
@@ -392,10 +406,11 @@ int radio_chip_read_packet(uint8_t *buf, int cap, float *rssi, float *snr)
     read_buffer(ptr, buf, (size_t)plen);
 
     if (rssi || snr) {
+        /* Full-duplex: ps_rx[0]=status, [1]=RssiPkt, [2]=SnrPkt, [3]=SignalRssiPkt. */
         uint8_t ps_tx[4] = { CMD_GET_PACKET_STATUS, 0, 0, 0 }, ps_rx[4] = {0};
         rf_xfer(ps_tx, ps_rx, 4);
-        if (rssi) *rssi = -((float)ps_rx[2]) / 2.0f;       /* RssiPkt */
-        if (snr)  *snr  = ((int8_t)ps_rx[3]) / 4.0f;        /* SnrPkt  */
+        if (rssi) *rssi = -((float)ps_rx[1]) / 2.0f;       /* RssiPkt */
+        if (snr)  *snr  = ((int8_t)ps_rx[2]) / 4.0f;        /* SnrPkt  */
     }
     clear_irq(IRQ_ALL);
     return plen;
