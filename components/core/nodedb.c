@@ -2,8 +2,8 @@
 #include "core/nodedb.h"
 #include <string.h>
 
-#define NODEDB_MAGIC 0x3142444Eu /* "NDB1" */
-#define REC_BYTES (4 + 48 + 16 + 4 + 4 + 4 + 4 + 2 + 4 + 1) /* = 91 */
+#define NODEDB_MAGIC 0x3242444Eu /* "NDB2" */
+#define REC_BYTES (4 + 48 + 16 + 4 + 4 + 4 + 4 + 2 + 4 + 1 + 1 + 4 + 1) /* = 97 */
 
 void nodedb_init(nodedb_t *db) { memset(db, 0, sizeof(*db)); }
 
@@ -69,6 +69,9 @@ int nodedb_serialize(const nodedb_t *db, uint8_t *buf, size_t cap)
         p = put_u16(p, (uint16_t)r->rssi);
         p = put_u32(p, r->last_heard);
         *p++ = r->has_position ? 1 : 0;
+        *p++ = r->battery;
+        memcpy(p, &r->voltage, 4); p += 4;
+        *p++ = r->has_telemetry ? 1 : 0;
     }
     return (int)need;
 }
@@ -98,6 +101,9 @@ bool nodedb_deserialize(nodedb_t *db, const uint8_t *buf, size_t len)
         uint16_t r16; p = get_u16(p, &r16); r->rssi = (int16_t)r16;
         p = get_u32(p, &r->last_heard);
         r->has_position = (*p++ != 0);
+        r->battery = *p++;
+        memcpy(&r->voltage, p, 4); p += 4;
+        r->has_telemetry = (*p++ != 0);
     }
     db->count = count;
     return true;

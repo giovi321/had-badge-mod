@@ -21,6 +21,9 @@ typedef struct {
     int16_t rssi;
     uint32_t last_heard;     /* unix seconds */
     bool has_position;
+    uint8_t battery;         /* percent, from telemetry (0 if unknown) */
+    float voltage;
+    bool has_telemetry;
 } node_record_t;
 
 typedef struct {

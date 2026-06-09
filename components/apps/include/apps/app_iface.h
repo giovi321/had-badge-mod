@@ -27,6 +27,7 @@ const app_def_t *app_gps(void);
 const app_def_t *app_diag(void);
 const app_def_t *app_track(void);
 const app_def_t *app_follow(void);
+const app_def_t *app_packets(void);
 
 /* Subscribe the messages app to the event bus + load saved history (call once
  * at boot). */

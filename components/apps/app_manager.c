@@ -121,7 +121,8 @@ void app_manager_init(eventbus_t *bus)
     s_apps[4] = app_gps();
     s_apps[5] = app_track();
     s_apps[6] = app_follow();
-    s_napps = 7;
+    s_apps[7] = app_packets();
+    s_napps = 8;
 
     s_group = lv_group_create();
     lv_group_set_default(s_group);

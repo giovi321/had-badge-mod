@@ -3,8 +3,10 @@
 #include "services/services.h"
 #include "net/backend.h"
 #include "drivers/gps.h"
+#include "drivers/battery.h"
 
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -28,7 +30,14 @@ static void mesh_task(void *arg)
         since_info += LOOP_S;
         since_pos += LOOP_S;
 
-        if (since_info >= NODEINFO_S) { net_send_nodeinfo(); since_info = 0; }
+        if (since_info >= NODEINFO_S) {
+            net_send_nodeinfo();
+            battery_state_t b;
+            battery_read(&b);
+            net_send_telemetry(b.present ? b.pct : -1, b.present ? b.volts : 0.0f,
+                               (uint32_t)(esp_timer_get_time() / 1000000));
+            since_info = 0;
+        }
 
         if (settings_get_bool(s_reg, "mesh_share_pos")) {
             int interval = (int)settings_get_int(s_reg, "mesh_pos_int");

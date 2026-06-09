@@ -46,6 +46,20 @@ bool mt_user_decode(const uint8_t *buf, size_t len, meshtastic_User *u)
     return pb_decode(&s, meshtastic_User_fields, u);
 }
 
+int mt_telemetry_encode(uint8_t *buf, size_t cap, const meshtastic_Telemetry *t)
+{
+    pb_ostream_t s = pb_ostream_from_buffer(buf, cap);
+    if (!pb_encode(&s, meshtastic_Telemetry_fields, t)) return -1;
+    return (int)s.bytes_written;
+}
+
+bool mt_telemetry_decode(const uint8_t *buf, size_t len, meshtastic_Telemetry *t)
+{
+    *t = (meshtastic_Telemetry)meshtastic_Telemetry_init_zero;
+    pb_istream_t s = pb_istream_from_buffer(buf, len);
+    return pb_decode(&s, meshtastic_Telemetry_fields, t);
+}
+
 int mt_data_make_text(meshtastic_Data *d, const char *text)
 {
     *d = (meshtastic_Data)meshtastic_Data_init_zero;

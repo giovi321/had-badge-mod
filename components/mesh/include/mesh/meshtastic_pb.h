@@ -18,9 +18,12 @@ int mt_position_encode(uint8_t *buf, size_t cap, const meshtastic_Position *p);
 int mt_user_encode(uint8_t *buf, size_t cap, const meshtastic_User *u);
 
 /* Decoders zero-init the struct first and return false on malformed input. */
+int mt_telemetry_encode(uint8_t *buf, size_t cap, const meshtastic_Telemetry *t);
+
 bool mt_data_decode(const uint8_t *buf, size_t len, meshtastic_Data *d);
 bool mt_position_decode(const uint8_t *buf, size_t len, meshtastic_Position *p);
 bool mt_user_decode(const uint8_t *buf, size_t len, meshtastic_User *u);
+bool mt_telemetry_decode(const uint8_t *buf, size_t len, meshtastic_Telemetry *t);
 
 /* Build a TEXT_MESSAGE_APP Data wrapping a UTF-8 string. Returns 0, or -1 if
  * the text is longer than the payload field can hold. */

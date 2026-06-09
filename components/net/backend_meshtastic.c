@@ -65,7 +65,26 @@ static struct {
     float last_rssi, last_snr;
     uint32_t ack_pending[16];   /* packet ids of unicast sends awaiting an ack */
     int ack_head;
+    net_pkt_log_t pktlog[32];
+    int pktlog_n, pktlog_head;
 } g;
+
+static void pktlog_add(uint32_t from, uint8_t port, float rssi, float snr, uint32_t when)
+{
+    net_pkt_log_t *e = &g.pktlog[g.pktlog_head];
+    e->from = from; e->portnum = port; e->rssi = (int16_t)rssi; e->snr = snr; e->when = when;
+    g.pktlog_head = (g.pktlog_head + 1) % 32;
+    if (g.pktlog_n < 32) g.pktlog_n++;
+}
+
+int mtb_packet_log(net_pkt_log_t *out, int max)
+{
+    int n = g.pktlog_n;
+    if (n > max) n = max;
+    for (int i = 0; i < n; i++)
+        out[i] = g.pktlog[(g.pktlog_head - 1 - i + 64) % 32];   /* most recent first */
+    return n;
+}
 
 void mtb_register_settings(settings_t *st)
 {
@@ -174,6 +193,19 @@ bool mtb_send_text_to(uint32_t to_id, const char *text)
 
 bool mtb_send_text(const char *text) { return mtb_send_text_to(MESH_BROADCAST, text); }
 
+bool mtb_send_telemetry(int battery_pct, float voltage, uint32_t uptime_s)
+{
+    meshtastic_Telemetry t = meshtastic_Telemetry_init_zero;
+    t.has_device_metrics = true;
+    if (battery_pct >= 0) t.device_metrics.battery_level = (uint32_t)battery_pct;
+    t.device_metrics.voltage = voltage;
+    t.device_metrics.uptime_seconds = uptime_s;
+    uint8_t payload[64];
+    int pl = mt_telemetry_encode(payload, sizeof payload, &t);
+    if (pl < 0) return false;
+    return send_data(meshtastic_PortNum_TELEMETRY_APP, payload, pl, MESH_BROADCAST, false, NULL);
+}
+
 bool mtb_send_position(double lat, double lon, int32_t alt, uint32_t ts)
 {
     meshtastic_Position p = meshtastic_Position_init_zero;
@@ -238,6 +270,8 @@ void mtb_on_frame(const uint8_t *frame, int len, float rssi, float snr, uint32_t
         }
     }
 
+    pktlog_add(hdr.from, (uint8_t)d.portnum, rssi, snr, now);
+
     net_message_t m = {0};
     m.from_id = hdr.from; m.snr = snr; m.rssi = (int)rssi; m.when = now;
     net_node_label(hdr.from, node->long_name, node->short_name, m.long_name, sizeof m.long_name);
@@ -268,6 +302,15 @@ void mtb_on_frame(const uint8_t *frame, int len, float rssi, float snr, uint32_t
         if (mt_user_decode(d.payload.bytes, d.payload.size, &u)) {
             snprintf(node->long_name, sizeof node->long_name, "%s", u.long_name);
             snprintf(node->short_name, sizeof node->short_name, "%s", u.short_name);
+        }
+        break;
+    }
+    case meshtastic_PortNum_TELEMETRY_APP: {
+        meshtastic_Telemetry t;
+        if (mt_telemetry_decode(d.payload.bytes, d.payload.size, &t) && t.has_device_metrics) {
+            node->battery = (uint8_t)t.device_metrics.battery_level;
+            node->voltage = t.device_metrics.voltage;
+            node->has_telemetry = true;
         }
         break;
     }

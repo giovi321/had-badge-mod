@@ -62,9 +62,10 @@ static void render(void)
     }
     for (int i = 0; i < db->count; i++) {
         node_record_t *r = &db->nodes[i];
-        char label[64], line[128], nav[28] = "";
+        char label[64], line[140], nav[28] = "", bat[12] = "";
         net_node_label(r->num, r->long_name, r->short_name, label, sizeof label);
         long age = now ? (long)(now - r->last_heard) : 0;
+        if (r->has_telemetry && r->battery) snprintf(bat, sizeof bat, "   %d%%", r->battery);
         if (havegps && r->has_position) {
             double nlat = r->lat_i / 1e7, nlon = r->lon_i / 1e7;
             double dist = geo_distance_m(fix.lat, fix.lon, nlat, nlon);
@@ -72,7 +73,7 @@ static void render(void)
             if (dist >= 1000.0) snprintf(nav, sizeof nav, "   %.1fkm %s", dist / 1000.0, card);
             else snprintf(nav, sizeof nav, "   %.0fm %s", dist, card);
         }
-        snprintf(line, sizeof line, "%s   SNR %.0f   %lds%s", label, (double)r->snr, age, nav);
+        snprintf(line, sizeof line, "%s   SNR %.0f   %lds%s%s", label, (double)r->snr, age, bat, nav);
 
         lv_obj_t *btn = lv_button_create(s_list);
         lv_obj_set_width(btn, LV_PCT(100));

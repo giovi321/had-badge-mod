@@ -40,6 +40,16 @@ typedef struct {
 
 void net_diag(net_diag_t *out);
 
+/* Recent received packets (for the packet-log app). */
+typedef struct {
+    uint32_t from;
+    uint8_t portnum;
+    int16_t rssi;
+    float snr;
+    uint32_t when;
+} net_pkt_log_t;
+int net_packet_log(net_pkt_log_t *out, int max);   /* most recent first; returns count */
+
 void net_init(settings_t *settings, eventbus_t *bus, uint32_t my_node);
 void net_register_settings(settings_t *settings);  /* schema only (call early) */
 void net_set_tx(net_tx_fn_t fn);
@@ -50,6 +60,7 @@ bool net_send_text(const char *text);                       /* broadcast */
 bool net_send_text_to(uint32_t to_id, const char *text);    /* unicast (want_ack) */
 bool net_send_position(double lat, double lon, int32_t alt, uint32_t ts);
 bool net_send_nodeinfo(void);
+bool net_send_telemetry(int battery_pct, float voltage, uint32_t uptime_s);
 
 uint32_t net_my_node(void);
 const char *net_channel_name(void);

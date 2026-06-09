@@ -49,6 +49,22 @@ typedef struct _meshtastic_Position {
     uint32_t precision_bits;
 } meshtastic_Position;
 
+/* telemetry.proto: DeviceMetrics + Telemetry (TELEMETRY_APP payload). Only the
+ device_metrics variant is modelled (field 2); other variants decode as absent. */
+typedef struct _meshtastic_DeviceMetrics {
+    uint32_t battery_level;
+    float voltage;
+    float channel_utilization;
+    float air_util_tx;
+    uint32_t uptime_seconds;
+} meshtastic_DeviceMetrics;
+
+typedef struct _meshtastic_Telemetry {
+    uint32_t time;
+    bool has_device_metrics;
+    meshtastic_DeviceMetrics device_metrics;
+} meshtastic_Telemetry;
+
 /* mesh.proto: User (NODEINFO_APP payload). */
 typedef struct _meshtastic_User {
     char id[16]; /* "!aabbccdd" */
@@ -75,12 +91,18 @@ extern "C" {
 
 
 
+
+
 /* Initializer values for message structs */
 #define meshtastic_Data_init_default             {_meshtastic_PortNum_MIN, {0, {0}}, 0, 0, 0, 0, 0, 0}
 #define meshtastic_Position_init_default         {0, 0, 0, 0, 0, 0, 0, 0, 0}
+#define meshtastic_DeviceMetrics_init_default    {0, 0, 0, 0, 0}
+#define meshtastic_Telemetry_init_default        {0, false, meshtastic_DeviceMetrics_init_default}
 #define meshtastic_User_init_default             {"", "", "", {0}, 0, 0, 0}
 #define meshtastic_Data_init_zero                {_meshtastic_PortNum_MIN, {0, {0}}, 0, 0, 0, 0, 0, 0}
 #define meshtastic_Position_init_zero            {0, 0, 0, 0, 0, 0, 0, 0, 0}
+#define meshtastic_DeviceMetrics_init_zero       {0, 0, 0, 0, 0}
+#define meshtastic_Telemetry_init_zero           {0, false, meshtastic_DeviceMetrics_init_zero}
 #define meshtastic_User_init_zero                {"", "", "", {0}, 0, 0, 0}
 
 /* Field tags (for use in manual encoding/decoding) */
@@ -101,6 +123,13 @@ extern "C" {
 #define meshtastic_Position_ground_track_tag     16
 #define meshtastic_Position_sats_in_view_tag     19
 #define meshtastic_Position_precision_bits_tag   23
+#define meshtastic_DeviceMetrics_battery_level_tag 1
+#define meshtastic_DeviceMetrics_voltage_tag     2
+#define meshtastic_DeviceMetrics_channel_utilization_tag 3
+#define meshtastic_DeviceMetrics_air_util_tx_tag 4
+#define meshtastic_DeviceMetrics_uptime_seconds_tag 5
+#define meshtastic_Telemetry_time_tag            1
+#define meshtastic_Telemetry_device_metrics_tag  2
 #define meshtastic_User_id_tag                   1
 #define meshtastic_User_long_name_tag            2
 #define meshtastic_User_short_name_tag           3
@@ -135,6 +164,22 @@ X(a, STATIC,   SINGULAR, UINT32,   precision_bits,   23)
 #define meshtastic_Position_CALLBACK NULL
 #define meshtastic_Position_DEFAULT NULL
 
+#define meshtastic_DeviceMetrics_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, UINT32,   battery_level,     1) \
+X(a, STATIC,   SINGULAR, FLOAT,    voltage,           2) \
+X(a, STATIC,   SINGULAR, FLOAT,    channel_utilization,   3) \
+X(a, STATIC,   SINGULAR, FLOAT,    air_util_tx,       4) \
+X(a, STATIC,   SINGULAR, UINT32,   uptime_seconds,    5)
+#define meshtastic_DeviceMetrics_CALLBACK NULL
+#define meshtastic_DeviceMetrics_DEFAULT NULL
+
+#define meshtastic_Telemetry_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, FIXED32,  time,              1) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  device_metrics,    2)
+#define meshtastic_Telemetry_CALLBACK NULL
+#define meshtastic_Telemetry_DEFAULT NULL
+#define meshtastic_Telemetry_device_metrics_MSGTYPE meshtastic_DeviceMetrics
+
 #define meshtastic_User_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, STRING,   id,                1) \
 X(a, STATIC,   SINGULAR, STRING,   long_name,         2) \
@@ -148,17 +193,23 @@ X(a, STATIC,   SINGULAR, INT32,    role,              7)
 
 extern const pb_msgdesc_t meshtastic_Data_msg;
 extern const pb_msgdesc_t meshtastic_Position_msg;
+extern const pb_msgdesc_t meshtastic_DeviceMetrics_msg;
+extern const pb_msgdesc_t meshtastic_Telemetry_msg;
 extern const pb_msgdesc_t meshtastic_User_msg;
 
 /* Defines for backwards compatibility with code written before nanopb-0.4.0 */
 #define meshtastic_Data_fields &meshtastic_Data_msg
 #define meshtastic_Position_fields &meshtastic_Position_msg
+#define meshtastic_DeviceMetrics_fields &meshtastic_DeviceMetrics_msg
+#define meshtastic_Telemetry_fields &meshtastic_Telemetry_msg
 #define meshtastic_User_fields &meshtastic_User_msg
 
 /* Maximum encoded size of messages (where known) */
 #define MESHTASTIC_MESHTASTIC_PB_H_MAX_SIZE      meshtastic_Data_size
 #define meshtastic_Data_size                     269
+#define meshtastic_DeviceMetrics_size            27
 #define meshtastic_Position_size                 64
+#define meshtastic_Telemetry_size                34
 #define meshtastic_User_size                     115
 
 #ifdef __cplusplus
