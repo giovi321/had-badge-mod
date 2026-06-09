@@ -27,10 +27,12 @@ bool radio_tx_submit(const uint8_t *frame, int len)
     return true;
 }
 
-static void drain_tx(void)
+static bool drain_tx(void)
 {
     tx_item_t it;
+    bool sent = false;
     while (xQueueReceive(s_txq, &it, 0) == pdTRUE) {
+        sent = true;
         /* Listen-before-talk: bounded CAD with capped backoff (no tight spin). */
         for (int a = 0; a < 16; a++) {
             int c = radio_chip_cad();
@@ -40,6 +42,7 @@ static void drain_tx(void)
         if (radio_chip_transmit(it.buf, it.len) != ESP_OK)
             ESP_LOGW(TAG, "tx timeout");
     }
+    return sent;
 }
 
 static void radio_task(void *arg)
@@ -48,8 +51,10 @@ static void radio_task(void *arg)
     uint8_t buf[256];
     radio_chip_start_rx();
     for (;;) {
-        drain_tx();
-        radio_chip_start_rx();
+        /* Only re-arm RX after a transmit (which leaves the chip in standby).
+         * Continuous RX stays live across received packets and timeouts, so
+         * re-arming every loop would abort an in-progress reception. */
+        if (drain_tx()) radio_chip_start_rx();
         if (radio_chip_wait_event(500)) {
             float rssi = 0, snr = 0;
             int n = radio_chip_read_packet(buf, sizeof buf, &rssi, &snr);
@@ -60,7 +65,6 @@ static void radio_task(void *arg)
             } else {
                 vTaskDelay(1);   /* spurious wake / DIO1 noise: yield, never spin a core */
             }
-            radio_chip_start_rx();
         }
     }
 }
