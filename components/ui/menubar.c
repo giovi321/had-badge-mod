@@ -6,6 +6,19 @@
 #include "ui/colors.h"
 #include "ui/theme.h"
 
+#include <ctype.h>
+#include <stddef.h>
+
+/* F-key labels are shown in all caps, matching the app headers. */
+static void set_caps(lv_obj_t *label, const char *text)
+{
+    char up[16];
+    size_t i = 0;
+    if (text) for (; text[i] && i + 1 < sizeof up; i++) up[i] = (char)toupper((unsigned char)text[i]);
+    up[i] = 0;
+    lv_label_set_text(label, up);
+}
+
 static lv_obj_t *s_bar;
 static lv_obj_t *s_cell[FKEY_COUNT];
 static lv_obj_t *s_label[FKEY_COUNT];
@@ -61,13 +74,13 @@ void menubar_set_labels(const char *l1, const char *l2, const char *l3,
 {
     const char *labels[FKEY_COUNT] = { l1, l2, l3, l4, l5 };
     for (int i = 0; i < FKEY_COUNT; i++)
-        lv_label_set_text(s_label[i], labels[i] ? labels[i] : "");
+        set_caps(s_label[i], labels[i]);
 }
 
 void menubar_set_cell(int i, const char *text)
 {
     if (i < 0 || i >= FKEY_COUNT) return;
-    lv_label_set_text(s_label[i], text ? text : "");
+    set_caps(s_label[i], text);
 }
 
 static void slide_cb(void *obj, int32_t y) { lv_obj_set_y((lv_obj_t *)obj, y); }

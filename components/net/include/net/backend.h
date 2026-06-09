@@ -32,7 +32,8 @@ typedef struct {
     int hop_limit;
     bool relay;
     int peers;
-    uint32_t rx_count;
+    uint32_t rx_count;   /* frames decoded on our channel */
+    uint32_t rx_raw;     /* all valid-CRC LoRa frames heard, any channel */
     uint32_t tx_count;
     float last_rssi;
     float last_snr;

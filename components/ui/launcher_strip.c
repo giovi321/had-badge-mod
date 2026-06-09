@@ -3,8 +3,21 @@
 #include "ui/theme.h"
 #include "ui/colors.h"
 
+#include <ctype.h>
+#include <stddef.h>
+
 #define TILE_W 104   /* wide enough that names like "Messages" fit on one line */
 #define TILE_H 92
+
+/* Tile labels in all caps, matching the headers and the function-key bar. */
+static void set_caps(lv_obj_t *label, const char *text)
+{
+    char up[24];
+    size_t i = 0;
+    if (text) for (; text[i] && i + 1 < sizeof up; i++) up[i] = (char)toupper((unsigned char)text[i]);
+    up[i] = 0;
+    lv_label_set_text(label, up);
+}
 
 static strip_select_cb s_cb;
 static void *s_ctx;
@@ -79,7 +92,7 @@ lv_obj_t *launcher_strip_create(lv_obj_t *parent, const strip_item_t *items, int
         lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_color(name, theme_hex(C_TEXT), 0);
         lv_obj_set_style_text_font(name, theme_font_body(), 0);
-        lv_label_set_text(name, items[i].name);
+        set_caps(name, items[i].name);
 
         lv_obj_add_event_cb(tile, tile_event, LV_EVENT_ALL, NULL);
         if (group) lv_group_add_obj(group, tile);

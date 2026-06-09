@@ -61,7 +61,7 @@ static struct {
     char device_name[48], short_name[16];
     nodedb_t db;
     dedup_t dd;
-    uint32_t rx_count, tx_count;
+    uint32_t rx_count, tx_count, rx_raw;
     float last_rssi, last_snr;
     uint32_t ack_pending[16];   /* packet ids of unicast sends awaiting an ack */
     int ack_head;
@@ -251,6 +251,13 @@ bool mtb_send_nodeinfo(void)
 /* --- RX ----------------------------------------------------------------- */
 void mtb_on_frame(const uint8_t *frame, int len, float rssi, float snr, uint32_t now)
 {
+    /* Any valid-CRC LoRa frame the radio demodulated, before the channel/decrypt
+     * filter. Lets diagnostics distinguish "hears nothing" from "hears other
+     * channels". The signal is the last heard, on any channel. */
+    g.rx_raw++;
+    g.last_rssi = rssi;
+    g.last_snr = snr;
+
     mesh_header_t hdr;
     uint8_t plain[256];
     size_t pl = 0;
@@ -369,6 +376,7 @@ void mtb_diag(net_diag_t *out)
     out->relay = g.rebroadcast;
     out->peers = g.db.count;
     out->rx_count = g.rx_count;
+    out->rx_raw = g.rx_raw;
     out->tx_count = g.tx_count;
     out->last_rssi = g.last_rssi;
     out->last_snr = g.last_snr;

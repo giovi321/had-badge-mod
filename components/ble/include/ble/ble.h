@@ -17,4 +17,7 @@ void ble_prepare(settings_t *reg);
 /* Register the ble_enabled setting, and start the BLE stack if it is on. */
 void ble_init(settings_t *reg, const char *device_short_name);
 
+/* Diagnostics: whether BLE is running and whether a phone is connected. */
+void ble_status(bool *enabled, bool *connected);
+
 #endif /* BLE_BLE_H */

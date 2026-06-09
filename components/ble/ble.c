@@ -46,6 +46,13 @@ static settings_t *s_reg;
 static char s_name[24];
 static uint8_t s_own_addr_type;
 static struct ble_npl_event s_notify_ev;
+static bool s_enabled;
+
+void ble_status(bool *enabled, bool *connected)
+{
+    if (enabled) *enabled = s_enabled;
+    if (connected) *connected = (s_conn != BLE_HS_CONN_HANDLE_NONE);
+}
 
 static void start_advertising(void);
 
@@ -356,5 +363,6 @@ void ble_init(settings_t *reg, const char *device_short_name)
     net_set_rx_observer(on_rx);
 
     nimble_port_freertos_init(host_task);
+    s_enabled = true;
     ESP_LOGI(TAG, "BLE Meshtastic companion starting");
 }
