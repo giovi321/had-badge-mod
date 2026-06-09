@@ -25,7 +25,7 @@ void run_theme_layout(void)
     CHECK_EQI(SIDEBAR_H, 124);
     CHECK_EQI(CONTENT_X, 28);
     CHECK_EQI(CONTENT_W, 400);
-    CHECK_EQI(BODY_H, 104);
+    CHECK_EQI(BODY_H, 110);
 
     SUITE("theme/battery-state");
     CHECK_EQI(theme_battery_state(-1, false, false, false), BATT_NONE);

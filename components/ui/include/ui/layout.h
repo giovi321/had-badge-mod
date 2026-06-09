@@ -16,7 +16,7 @@
 
 #define SIDEBAR_W     28
 #define BOTTOMBAR_H   18
-#define HEADER_H      20
+#define HEADER_H      14   /* compact: small right-aligned all-caps title */
 
 #define SIDEBAR_H     (SCREEN_H - BOTTOMBAR_H)   /* 124: stops at the bar */
 #define CONTENT_X     SIDEBAR_W                  /* 28 */

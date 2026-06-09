@@ -4,6 +4,17 @@
 #include "ui/colors.h"
 #include "ui/theme.h"
 
+#include <ctype.h>
+#include <stddef.h>
+
+/* Uppercase a title into dst for the all-caps header. */
+static void upcase(char *dst, size_t cap, const char *src)
+{
+    size_t i = 0;
+    if (src) for (; src[i] && i + 1 < cap; i++) dst[i] = (char)toupper((unsigned char)src[i]);
+    dst[i] = 0;
+}
+
 void frame_create(frame_t *f, const char *title)
 {
     f->screen = theme_screen_create();
@@ -23,10 +34,14 @@ void frame_create(frame_t *f, const char *title)
     f->title = lv_label_create(f->header);
     lv_label_set_long_mode(f->title, LV_LABEL_LONG_DOT);
     lv_obj_set_width(f->title, CONTENT_W - 16);
-    lv_obj_align(f->title, LV_ALIGN_LEFT_MID, 0, 0);
-    lv_obj_set_style_text_color(f->title, theme_hex(C_TEXT), 0);
-    lv_obj_set_style_text_font(f->title, theme_font_title(), 0);
-    lv_label_set_text(f->title, title ? title : "");
+    lv_obj_align(f->title, LV_ALIGN_RIGHT_MID, 0, 0);
+    lv_obj_set_style_text_align(f->title, LV_TEXT_ALIGN_RIGHT, 0);
+    lv_obj_set_style_text_color(f->title, theme_hex(C_TEXT_DIM), 0);
+    lv_obj_set_style_text_font(f->title, theme_font_body(), 0);
+    lv_obj_set_style_text_letter_space(f->title, 1, 0);
+    char up[40];
+    upcase(up, sizeof up, title);
+    lv_label_set_text(f->title, up);
 
     /* Body: between header and the bottom bar, right of the sidebar. */
     f->body = lv_obj_create(f->screen);
@@ -40,7 +55,9 @@ void frame_create(frame_t *f, const char *title)
 
 void frame_set_title(frame_t *f, const char *title)
 {
-    lv_label_set_text(f->title, title ? title : "");
+    char up[40];
+    upcase(up, sizeof up, title);
+    lv_label_set_text(f->title, up);
 }
 
 static void scroll_key_cb(lv_event_t *e)
