@@ -10,6 +10,7 @@ void battery_svc_init(void);
 void gps_svc_init(settings_t *reg);
 void time_svc_init(void);
 void mesh_svc_init(settings_t *reg);
+void wifi_svc_init(settings_t *reg);     /* WiFi + web UI from settings */
 void status_svc_init(settings_t *reg);   /* creates the sidebar lv_timer */
 
 #endif /* SERVICES_SERVICES_H */

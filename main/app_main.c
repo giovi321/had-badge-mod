@@ -81,6 +81,7 @@ void app_main(void)
     time_svc_init();
     mesh_svc_init(&s_settings);
     track_svc_init();
+    wifi_svc_init(&s_settings);
 
     /* 6. Apps + UI. */
     messages_init(&s_bus, &s_settings);

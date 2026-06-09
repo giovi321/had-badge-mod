@@ -7,6 +7,7 @@
 #include "ui/status.h"
 #include "drivers/battery.h"
 #include "drivers/gps.h"
+#include "drivers/wifi.h"
 #include "net/backend.h"
 
 static settings_t *s_reg;
@@ -23,8 +24,13 @@ static void status_tick(lv_timer_t *t)
     s.charging = b.charging;
     s.usb = b.usb;
 
-    s.wifi_state = "off";          /* WiFi not used in v1 */
-    s.wifi_rssi_valid = false;
+    static char ws[8];
+    int rssi = 0;
+    bool rv = false;
+    wifi_get_state(ws, sizeof ws, &rssi, &rv);
+    s.wifi_state = ws;
+    s.wifi_rssi = rssi;
+    s.wifi_rssi_valid = rv;
 
     s.mesh_up = true;
     s.mesh_peers = net_peer_count();
