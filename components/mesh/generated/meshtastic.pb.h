@@ -59,10 +59,18 @@ typedef struct _meshtastic_DeviceMetrics {
     uint32_t uptime_seconds;
 } meshtastic_DeviceMetrics;
 
+typedef struct _meshtastic_EnvironmentMetrics {
+    float temperature; /* degrees C */
+    float relative_humidity; /* percent */
+    float barometric_pressure; /* hPa */
+} meshtastic_EnvironmentMetrics;
+
 typedef struct _meshtastic_Telemetry {
     uint32_t time;
     bool has_device_metrics;
     meshtastic_DeviceMetrics device_metrics;
+    bool has_environment_metrics;
+    meshtastic_EnvironmentMetrics environment_metrics;
 } meshtastic_Telemetry;
 
 /* mesh.proto: User (NODEINFO_APP payload). */
@@ -168,11 +176,13 @@ extern "C" {
 
 
 
+
 /* Initializer values for message structs */
 #define meshtastic_Data_init_default             {_meshtastic_PortNum_MIN, {0, {0}}, 0, 0, 0, 0, 0, 0}
 #define meshtastic_Position_init_default         {0, 0, 0, 0, 0, 0, 0, 0, 0}
 #define meshtastic_DeviceMetrics_init_default    {0, 0, 0, 0, 0}
-#define meshtastic_Telemetry_init_default        {0, false, meshtastic_DeviceMetrics_init_default}
+#define meshtastic_EnvironmentMetrics_init_default {0, 0, 0}
+#define meshtastic_Telemetry_init_default        {0, false, meshtastic_DeviceMetrics_init_default, false, meshtastic_EnvironmentMetrics_init_default}
 #define meshtastic_User_init_default             {"", "", "", {0}, 0, 0, 0}
 #define meshtastic_MeshPacket_init_default       {0, 0, 0, 0, {meshtastic_Data_init_default}, 0, 0, 0, 0, 0, 0}
 #define meshtastic_MyNodeInfo_init_default       {0}
@@ -184,7 +194,8 @@ extern "C" {
 #define meshtastic_Data_init_zero                {_meshtastic_PortNum_MIN, {0, {0}}, 0, 0, 0, 0, 0, 0}
 #define meshtastic_Position_init_zero            {0, 0, 0, 0, 0, 0, 0, 0, 0}
 #define meshtastic_DeviceMetrics_init_zero       {0, 0, 0, 0, 0}
-#define meshtastic_Telemetry_init_zero           {0, false, meshtastic_DeviceMetrics_init_zero}
+#define meshtastic_EnvironmentMetrics_init_zero  {0, 0, 0}
+#define meshtastic_Telemetry_init_zero           {0, false, meshtastic_DeviceMetrics_init_zero, false, meshtastic_EnvironmentMetrics_init_zero}
 #define meshtastic_User_init_zero                {"", "", "", {0}, 0, 0, 0}
 #define meshtastic_MeshPacket_init_zero          {0, 0, 0, 0, {meshtastic_Data_init_zero}, 0, 0, 0, 0, 0, 0}
 #define meshtastic_MyNodeInfo_init_zero          {0}
@@ -217,8 +228,12 @@ extern "C" {
 #define meshtastic_DeviceMetrics_channel_utilization_tag 3
 #define meshtastic_DeviceMetrics_air_util_tx_tag 4
 #define meshtastic_DeviceMetrics_uptime_seconds_tag 5
+#define meshtastic_EnvironmentMetrics_temperature_tag 1
+#define meshtastic_EnvironmentMetrics_relative_humidity_tag 2
+#define meshtastic_EnvironmentMetrics_barometric_pressure_tag 3
 #define meshtastic_Telemetry_time_tag            1
 #define meshtastic_Telemetry_device_metrics_tag  2
+#define meshtastic_Telemetry_environment_metrics_tag 3
 #define meshtastic_User_id_tag                   1
 #define meshtastic_User_long_name_tag            2
 #define meshtastic_User_short_name_tag           3
@@ -294,12 +309,21 @@ X(a, STATIC,   SINGULAR, UINT32,   uptime_seconds,    5)
 #define meshtastic_DeviceMetrics_CALLBACK NULL
 #define meshtastic_DeviceMetrics_DEFAULT NULL
 
+#define meshtastic_EnvironmentMetrics_FIELDLIST(X, a) \
+X(a, STATIC,   SINGULAR, FLOAT,    temperature,       1) \
+X(a, STATIC,   SINGULAR, FLOAT,    relative_humidity,   2) \
+X(a, STATIC,   SINGULAR, FLOAT,    barometric_pressure,   3)
+#define meshtastic_EnvironmentMetrics_CALLBACK NULL
+#define meshtastic_EnvironmentMetrics_DEFAULT NULL
+
 #define meshtastic_Telemetry_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, FIXED32,  time,              1) \
-X(a, STATIC,   OPTIONAL, MESSAGE,  device_metrics,    2)
+X(a, STATIC,   OPTIONAL, MESSAGE,  device_metrics,    2) \
+X(a, STATIC,   OPTIONAL, MESSAGE,  environment_metrics,   3)
 #define meshtastic_Telemetry_CALLBACK NULL
 #define meshtastic_Telemetry_DEFAULT NULL
 #define meshtastic_Telemetry_device_metrics_MSGTYPE meshtastic_DeviceMetrics
+#define meshtastic_Telemetry_environment_metrics_MSGTYPE meshtastic_EnvironmentMetrics
 
 #define meshtastic_User_FIELDLIST(X, a) \
 X(a, STATIC,   SINGULAR, STRING,   id,                1) \
@@ -385,6 +409,7 @@ X(a, STATIC,   ONEOF,    MESSAGE,  (payload_variant,channel,payload_variant.chan
 extern const pb_msgdesc_t meshtastic_Data_msg;
 extern const pb_msgdesc_t meshtastic_Position_msg;
 extern const pb_msgdesc_t meshtastic_DeviceMetrics_msg;
+extern const pb_msgdesc_t meshtastic_EnvironmentMetrics_msg;
 extern const pb_msgdesc_t meshtastic_Telemetry_msg;
 extern const pb_msgdesc_t meshtastic_User_msg;
 extern const pb_msgdesc_t meshtastic_MeshPacket_msg;
@@ -399,6 +424,7 @@ extern const pb_msgdesc_t meshtastic_FromRadio_msg;
 #define meshtastic_Data_fields &meshtastic_Data_msg
 #define meshtastic_Position_fields &meshtastic_Position_msg
 #define meshtastic_DeviceMetrics_fields &meshtastic_DeviceMetrics_msg
+#define meshtastic_EnvironmentMetrics_fields &meshtastic_EnvironmentMetrics_msg
 #define meshtastic_Telemetry_fields &meshtastic_Telemetry_msg
 #define meshtastic_User_fields &meshtastic_User_msg
 #define meshtastic_MeshPacket_fields &meshtastic_MeshPacket_msg
@@ -415,12 +441,13 @@ extern const pb_msgdesc_t meshtastic_FromRadio_msg;
 #define meshtastic_Channel_size                  75
 #define meshtastic_Data_size                     269
 #define meshtastic_DeviceMetrics_size            27
+#define meshtastic_EnvironmentMetrics_size       15
 #define meshtastic_FromRadio_size                331
 #define meshtastic_MeshPacket_size               322
 #define meshtastic_MyNodeInfo_size               6
 #define meshtastic_NodeInfo_size                 228
 #define meshtastic_Position_size                 64
-#define meshtastic_Telemetry_size                34
+#define meshtastic_Telemetry_size                51
 #define meshtastic_ToRadio_size                  325
 #define meshtastic_User_size                     115
 

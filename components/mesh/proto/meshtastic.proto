@@ -40,8 +40,8 @@ message Position {
   int32 altitude = 3;        // metres MSL
   fixed32 time = 4;          // unix seconds
   int32 location_source = 5; // LocSource enum (varint)
-  uint32 ground_speed = 15;
-  uint32 ground_track = 16;  // 1/100 degree
+  uint32 ground_speed = 15;  // metres per second
+  uint32 ground_track = 16;  // heading, degrees * 1e-5
   uint32 sats_in_view = 19;
   uint32 precision_bits = 23;
 }
@@ -56,9 +56,16 @@ message DeviceMetrics {
   uint32 uptime_seconds = 5;
 }
 
+message EnvironmentMetrics {
+  float temperature = 1;          // degrees C
+  float relative_humidity = 2;    // percent
+  float barometric_pressure = 3;  // hPa
+}
+
 message Telemetry {
   fixed32 time = 1;
   DeviceMetrics device_metrics = 2;
+  EnvironmentMetrics environment_metrics = 3;
 }
 
 // mesh.proto: User (NODEINFO_APP payload).

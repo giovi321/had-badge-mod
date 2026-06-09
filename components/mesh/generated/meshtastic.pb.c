@@ -15,6 +15,9 @@ PB_BIND(meshtastic_Position, meshtastic_Position, AUTO)
 PB_BIND(meshtastic_DeviceMetrics, meshtastic_DeviceMetrics, AUTO)
 
 
+PB_BIND(meshtastic_EnvironmentMetrics, meshtastic_EnvironmentMetrics, AUTO)
+
+
 PB_BIND(meshtastic_Telemetry, meshtastic_Telemetry, AUTO)
 
 

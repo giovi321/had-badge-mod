@@ -8,10 +8,15 @@ checked against the values a stock Meshtastic device uses, so packets interopera
 
 ## Protobufs
 
-Message bodies use the official Meshtastic protobufs (`Data`, `Position`, `User`) generated
-with nanopb. The proto definitions live in `components/mesh/proto/meshtastic.proto`, and the
-generated C is in `components/mesh/generated/`. Field numbers and types match upstream, so
-the wire bytes are the same.
+Message bodies use the official Meshtastic protobufs (`Data`, `Position`, `User`, and
+`Telemetry` with device and environment metrics) generated with nanopb. The proto
+definitions live in `components/mesh/proto/meshtastic.proto`, and the generated C is in
+`components/mesh/generated/`. Field numbers and types match upstream, so the wire bytes are
+the same.
+
+Received `Position` packets contribute the node's location, and also its ground speed and
+heading, which the Tracker app uses to follow a moving node. `Telemetry` packets contribute
+battery level and, when present, environment readings such as temperature and humidity.
 
 ## Crypto
 

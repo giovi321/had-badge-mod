@@ -308,6 +308,11 @@ void mtb_on_frame(const uint8_t *frame, int len, float rssi, float snr, uint32_t
         if (mt_position_decode(d.payload.bytes, d.payload.size, &p)) {
             node->lat_i = p.latitude_i; node->lon_i = p.longitude_i;
             node->alt = p.altitude; node->has_position = true;
+            if (p.ground_speed || p.ground_track) {
+                node->speed = (float)p.ground_speed;        /* m/s */
+                node->course = (float)p.ground_track / 1e5f; /* degrees */
+                node->has_motion = true;
+            }
             m.kind = MSG_POSITION;
             m.lat = p.latitude_i / 1e7; m.lon = p.longitude_i / 1e7;
             m.alt = p.altitude; m.ts = p.time; m.sats = p.sats_in_view;
@@ -325,10 +330,18 @@ void mtb_on_frame(const uint8_t *frame, int len, float rssi, float snr, uint32_t
     }
     case meshtastic_PortNum_TELEMETRY_APP: {
         meshtastic_Telemetry t;
-        if (mt_telemetry_decode(d.payload.bytes, d.payload.size, &t) && t.has_device_metrics) {
-            node->battery = (uint8_t)t.device_metrics.battery_level;
-            node->voltage = t.device_metrics.voltage;
-            node->has_telemetry = true;
+        if (mt_telemetry_decode(d.payload.bytes, d.payload.size, &t)) {
+            if (t.has_device_metrics) {
+                node->battery = (uint8_t)t.device_metrics.battery_level;
+                node->voltage = t.device_metrics.voltage;
+                node->has_telemetry = true;
+            }
+            if (t.has_environment_metrics) {
+                node->temperature = t.environment_metrics.temperature;
+                node->humidity = t.environment_metrics.relative_humidity;
+                node->pressure = t.environment_metrics.barometric_pressure;
+                node->has_env = true;
+            }
         }
         break;
     }

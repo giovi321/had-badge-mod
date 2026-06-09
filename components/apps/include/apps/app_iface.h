@@ -28,6 +28,7 @@ const app_def_t *app_diag(void);
 const app_def_t *app_track(void);
 const app_def_t *app_follow(void);
 const app_def_t *app_packets(void);
+const app_def_t *app_tracker(void);
 
 /* Subscribe the messages app to the event bus + load saved history (call once
  * at boot). */
@@ -36,6 +37,9 @@ void messages_init(eventbus_t *bus, settings_t *settings);
 /* Set the recipient for the next messages the app sends (0xFFFFFFFF = broadcast).
  * Called by the Nodes app to start a direct message. */
 void messages_set_target(uint32_t node);
+
+/* Set which node the Tracker app follows. Called by the Nodes app. */
+void tracker_set_target(uint32_t node);
 
 /* Give the settings app access to the registry (call once at boot). */
 void settings_app_init(settings_t *reg);

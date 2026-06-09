@@ -24,6 +24,15 @@ typedef struct {
     uint8_t battery;         /* percent, from telemetry (0 if unknown) */
     float voltage;
     bool has_telemetry;
+    /* Motion, from the node's own Position (useful when following a tracker). */
+    float speed;             /* metres per second (ground_speed) */
+    float course;            /* degrees, the node's heading (ground_track) */
+    bool has_motion;
+    /* Environment telemetry (weather/tracker sensors). */
+    float temperature;       /* degrees C */
+    float humidity;          /* percent */
+    float pressure;          /* hPa */
+    bool has_env;
 } node_record_t;
 
 typedef struct {

@@ -14,8 +14,11 @@ When the badge has a GPS fix and a node has shared its position, the row also sh
 distance and a compass direction to that node. If a node has sent telemetry, the row shows
 its battery level.
 
-Use the arrow keys to move through the list. Press F1 or Enter on a node to start a direct
-message to it.
+Use the arrow keys to move through the list. With a node selected:
+
+- F1 or Enter starts a direct message to it.
+- F2 (Track) opens the [Tracker](/had-badge-mod/apps/tracker/) app pointed at that node, for
+  following its live position, speed, and any temperature it reports.
 
 The node table is held in RAM with a fixed capacity and evicts the least recently heard node
 when it is full.

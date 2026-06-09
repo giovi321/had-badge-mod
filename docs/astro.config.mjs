@@ -51,6 +51,7 @@ export default defineConfig({
             { label: 'Settings', link: '/apps/settings/' },
             { label: 'GPS', link: '/apps/gps/' },
             { label: 'Breadcrumbs and Follow', link: '/apps/breadcrumbs/' },
+            { label: 'Tracker', link: '/apps/tracker/' },
             { label: 'Packets', link: '/apps/packets/' },
           ],
         },

@@ -24,14 +24,26 @@ static lv_obj_t *s_list;
 static lv_group_t *s_group;
 static int s_rendered = -1;
 
-static void message_focused(void)
+static uint32_t focused_num(void)
 {
     lv_obj_t *f = lv_group_get_focused(s_group);
-    if (!f) return;
-    uint32_t num = (uint32_t)(uintptr_t)lv_obj_get_user_data(f);
+    return f ? (uint32_t)(uintptr_t)lv_obj_get_user_data(f) : 0;
+}
+
+static void message_focused(void)
+{
+    uint32_t num = focused_num();
     if (!num) return;
     messages_set_target(num);
     app_manager_launch_app(app_messages());
+}
+
+static void track_focused(void)
+{
+    uint32_t num = focused_num();
+    if (!num) return;
+    tracker_set_target(num);
+    app_manager_launch_app(app_tracker());
 }
 
 static void node_key(lv_event_t *e)
@@ -106,7 +118,7 @@ static void build(lv_obj_t **screen, lv_group_t *group)
     s_rendered = -1;
     render();
     *screen = f.screen;
-    menubar_set_labels("Message", "", "", "", "");
+    menubar_set_labels("Message", "Track", "", "", "");
 }
 
 static void tick(void)
@@ -114,7 +126,11 @@ static void tick(void)
     if (net_peer_count() != s_rendered) render();
 }
 
-static void on_fkey(int n) { if (n == 1) message_focused(); }
+static void on_fkey(int n)
+{
+    if (n == 1) message_focused();
+    else if (n == 2) track_focused();
+}
 
 const app_def_t *app_nodes(void)
 {
