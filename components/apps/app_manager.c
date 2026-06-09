@@ -11,7 +11,7 @@
 
 static const char *TAG = "apps";
 
-static const app_def_t *s_apps[6];
+static const app_def_t *s_apps[12];
 static int s_napps;
 static lv_group_t *s_group;
 static lv_indev_t *s_indev;
@@ -113,7 +113,9 @@ void app_manager_init(eventbus_t *bus)
     s_apps[2] = app_settings();
     s_apps[3] = app_diag();
     s_apps[4] = app_gps();
-    s_napps = 5;
+    s_apps[5] = app_track();
+    s_apps[6] = app_follow();
+    s_napps = 7;
 
     s_group = lv_group_create();
     lv_group_set_default(s_group);

@@ -20,6 +20,7 @@ SUITE_DECL(run_eventbus);
 SUITE_DECL(run_settings);
 SUITE_DECL(run_nodedb);
 SUITE_DECL(run_nmea);
+SUITE_DECL(run_geo);
 SUITE_DECL(run_theme_layout);
 
 #define RUN(f) do { if (f) (f)(); } while (0)
@@ -36,6 +37,7 @@ int main(void)
     RUN(run_settings);
     RUN(run_nodedb);
     RUN(run_nmea);
+    RUN(run_geo);
     RUN(run_theme_layout);
 
     printf("\n%d checks, %d failure%s\n", ht_checks, ht_fails, ht_fails == 1 ? "" : "s");

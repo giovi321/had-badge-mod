@@ -12,6 +12,9 @@ typedef struct {
     int32_t alt;
     int sats;
     uint32_t ts;       /* unix seconds, 0 if unknown */
+    bool has_course;
+    double course;     /* degrees true, course over ground (RMC) */
+    double speed;      /* knots */
 } gps_fix_t;
 
 esp_err_t gps_init(int rx_pin, int tx_pin, int baud);

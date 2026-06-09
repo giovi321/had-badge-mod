@@ -36,7 +36,7 @@ $src = $srcGlobs | ForEach-Object { Get-ChildItem $_ -ErrorAction SilentlyContin
     Select-Object -ExpandProperty FullName |
     Where-Object { $_ -notmatch '_nvs\.c$' }   # device-only (NVS); not host-portable
 $incArgs = $includes | ForEach-Object { "-I$_" }
-$cflags = @('-std=c11', '-O2', '-Wall', '-Wextra', '-Wno-unused-parameter', '-Wno-sign-compare')
+$cflags = @('-std=c11', '-O2', '-Wall', '-Wextra', '-Wno-unused-parameter', '-Wno-sign-compare', '-lm')
 
 New-Item -ItemType Directory -Force -Path "$root\build-host" | Out-Null
 $exe = "$root\build-host\ht.exe"

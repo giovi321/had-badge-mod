@@ -19,6 +19,8 @@ static void on_sentence(const nmea_result_t *r, void *ctx)
     (void)ctx;
     if (r->kind == NMEA_RMC && r->valid) {
         s_fix.lat = r->lat; s_fix.lon = r->lon; s_fix.ts = r->ts; s_fix.valid = true;
+        s_fix.speed = r->speed;
+        if (r->has_track) { s_fix.course = r->track; s_fix.has_course = true; }
     } else if (r->kind == NMEA_GGA && r->valid) {
         s_fix.lat = r->lat; s_fix.lon = r->lon;
         s_fix.alt = r->alt; s_fix.sats = r->sats; s_fix.valid = true;

@@ -17,6 +17,7 @@ typedef struct {
     bool gps_enabled;
     bool gps_fix;
     int  gps_sats;
+    bool tracking;          /* breadcrumb recording active */
 } status_snapshot_t;
 
 #endif /* UI_STATUS_H */

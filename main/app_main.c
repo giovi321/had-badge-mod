@@ -28,6 +28,7 @@
 #include "radio/radio_task.h"
 
 #include "services/services.h"
+#include "services/track.h"
 #include "apps/app_manager.h"
 #include "apps/app_iface.h"
 
@@ -79,6 +80,7 @@ void app_main(void)
     gps_svc_init(&s_settings);
     time_svc_init();
     mesh_svc_init(&s_settings);
+    track_svc_init();
 
     /* 6. Apps + UI. */
     messages_init(&s_bus, &s_settings);

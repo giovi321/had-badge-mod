@@ -1,6 +1,7 @@
 /* Status service: an lv_timer (runs in the UI task) that gathers battery / mesh
  * / gps / wifi state into a snapshot and refreshes the sidebar. */
 #include "services/services.h"
+#include "services/track.h"
 #include "lvgl.h"
 #include "ui/sidebar.h"
 #include "ui/status.h"
@@ -32,6 +33,8 @@ static void status_tick(lv_timer_t *t)
     gps_fix_t fix;
     s.gps_fix = gps_get_fix(&fix) && fix.valid;
     s.gps_sats = fix.sats;
+
+    s.tracking = track_is_active();
 
     sidebar_update(&s);
 }

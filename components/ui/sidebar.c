@@ -7,7 +7,7 @@
 #include "ui/theme_map.h"
 
 static lv_obj_t *s_bar;
-static lv_obj_t *s_batt, *s_mesh, *s_wifi, *s_gps;
+static lv_obj_t *s_batt, *s_mesh, *s_wifi, *s_gps, *s_track;
 
 static lv_obj_t *make_icon(lv_obj_t *parent, const char *sym)
 {
@@ -37,6 +37,15 @@ void sidebar_init(void)
     s_mesh = make_icon(s_bar, ICON_MESH);
     s_wifi = make_icon(s_bar, ICON_WIFI);
     s_gps  = make_icon(s_bar, ICON_GPS);
+
+    /* breadcrumb recording dot (drawn, not a glyph, so no font dependency) */
+    s_track = lv_obj_create(s_bar);
+    lv_obj_set_size(s_track, 8, 8);
+    lv_obj_set_style_radius(s_track, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_bg_color(s_track, theme_hex(C_IDLE), 0);
+    lv_obj_set_style_bg_opa(s_track, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(s_track, 0, 0);
+    lv_obj_remove_flag(s_track, LV_OBJ_FLAG_SCROLLABLE);
 }
 
 void sidebar_update(const status_snapshot_t *s)
@@ -60,4 +69,7 @@ void sidebar_update(const status_snapshot_t *s)
     gps_state_t gs = theme_gps_state(s->gps_enabled, s->gps_fix, s->gps_sats);
     long gc = (gs == GPS_OFF) ? C_IDLE : (gs == GPS_SEARCH ? C_TEXT_DIM : C_OK);
     lv_obj_set_style_text_color(s_gps, theme_hex(gc), 0);
+
+    /* Tracking: red dot when recording, dim otherwise. */
+    lv_obj_set_style_bg_color(s_track, theme_hex(s->tracking ? C_CRIT : C_IDLE), 0);
 }

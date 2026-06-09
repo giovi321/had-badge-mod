@@ -3,4 +3,5 @@ nvs,        data, nvs,      0x9000,   0x6000
 phy_init,   data, phy,      0xf000,   0x1000
 factory,    app,  factory,  0x10000,  0x300000
 coredump,   data, coredump, 0x310000, 0x40000
-# 16 MB flash; ~12 MB free after this for future OTA/assets.
+storage,    data, spiffs,   0x350000, 0x100000
+# 16 MB flash; storage holds GPS track files (~11 MB still free for OTA/assets).
