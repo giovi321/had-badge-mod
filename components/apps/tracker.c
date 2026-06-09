@@ -128,14 +128,16 @@ static void tick(void)
     char extra[160];
     int p = 0;
     extra[0] = 0;
-    if (r->has_motion)
+    /* The guards keep `sizeof extra - p` from underflowing if an earlier line
+     * ever truncates (snprintf returns the intended, not the written, length). */
+    if (r->has_motion && p < (int)sizeof extra)
         p += snprintf(extra + p, sizeof extra - p, "Their speed %.1f m/s, course %.0f\n",
                       (double)r->speed, (double)r->course);
-    if (r->has_env)
+    if (r->has_env && p < (int)sizeof extra)
         p += snprintf(extra + p, sizeof extra - p, "Temp %.1f C, hum %.0f%%\n",
                       (double)r->temperature, (double)r->humidity);
-    if (r->has_telemetry && r->battery)
-        p += snprintf(extra + p, sizeof extra - p, "Battery %d%%\n", r->battery);
+    if (r->has_telemetry && r->battery && p < (int)sizeof extra)
+        snprintf(extra + p, sizeof extra - p, "Battery %d%%\n", r->battery);
 
     uint32_t now = (uint32_t)time(NULL);
     long age = now ? (long)(now - r->last_heard) : 0;

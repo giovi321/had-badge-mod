@@ -18,6 +18,7 @@
 #include "host/util/util.h"
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
+#include "host/ble_att.h"
 
 static const char *TAG = "ble";
 
@@ -43,8 +44,19 @@ static uint16_t s_fromnum_handle;
 static settings_t *s_reg;
 static char s_name[24];
 static uint8_t s_own_addr_type;
+static struct ble_npl_event s_notify_ev;
 
 static void start_advertising(void);
+
+/* Send the FromNum notify. Runs on the NimBLE host task (posted from fifo_push)
+ * so NimBLE host APIs are never touched from the radio task. */
+static void notify_cb(struct ble_npl_event *ev)
+{
+    (void)ev;
+    if (s_conn == BLE_HS_CONN_HANDLE_NONE || !s_fromnum_handle) return;
+    struct os_mbuf *om = ble_hs_mbuf_from_flat(&s_fromnum, sizeof s_fromnum);
+    if (om) ble_gatts_notify_custom(s_conn, s_fromnum_handle, om);
+}
 
 /* --- FromRadio queue ---------------------------------------------------- */
 static void fifo_push(const uint8_t *data, int len)
@@ -57,13 +69,12 @@ static void fifo_push(const uint8_t *data, int len)
         s_tail = (s_tail + 1) % FIFO_CAP;
         s_n++;
     }
+    s_fromnum++;
     xSemaphoreGive(s_lock);
 
-    s_fromnum++;
-    if (s_conn != BLE_HS_CONN_HANDLE_NONE && s_fromnum_handle) {
-        struct os_mbuf *om = ble_hs_mbuf_from_flat(&s_fromnum, sizeof s_fromnum);
-        if (om) ble_gatts_notify_custom(s_conn, s_fromnum_handle, om);
-    }
+    /* fifo_push runs on the radio task. Hand the GATT notify to the NimBLE host
+     * task via its event queue, which is safe to post to from any task. */
+    ble_npl_eventq_put(nimble_port_get_dflt_eventq(), &s_notify_ev);
 }
 
 static int fifo_pop(uint8_t *out)
@@ -283,7 +294,9 @@ static void start_advertising(void)
     struct ble_gap_adv_params adv = {0};
     adv.conn_mode = BLE_GAP_CONN_MODE_UND;
     adv.disc_mode = BLE_GAP_DISC_MODE_GEN;
-    ble_gap_adv_start(s_own_addr_type, NULL, BLE_HS_FOREVER, &adv, gap_event, NULL);
+    int rc = ble_gap_adv_start(s_own_addr_type, NULL, BLE_HS_FOREVER, &adv, gap_event, NULL);
+    if (rc && rc != BLE_HS_EALREADY && rc != BLE_HS_EBUSY)
+        ESP_LOGW(TAG, "adv start failed: %d", rc);
 }
 
 static void on_sync(void)
@@ -312,15 +325,22 @@ void ble_init(settings_t *reg, const char *device_short_name)
 
     snprintf(s_name, sizeof s_name, "%s", device_short_name && device_short_name[0] ? device_short_name : "Communicator");
     s_lock = xSemaphoreCreateMutex();
-    net_set_rx_observer(on_rx);
 
     if (nimble_port_init() != ESP_OK) { ESP_LOGE(TAG, "nimble init failed"); return; }
     ble_svc_gap_init();
     ble_svc_gatt_init();
-    ble_gatts_count_cfg(GATT_SVCS);
-    ble_gatts_add_svcs(GATT_SVCS);
+    int rc;
+    if ((rc = ble_gatts_count_cfg(GATT_SVCS))) { ESP_LOGE(TAG, "gatts count_cfg %d", rc); return; }
+    if ((rc = ble_gatts_add_svcs(GATT_SVCS))) { ESP_LOGE(TAG, "gatts add_svcs %d", rc); return; }
     ble_svc_gap_device_name_set(s_name);
+    ble_att_set_preferred_mtu(247);            /* let the phone send full frames */
     ble_hs_cfg.sync_cb = on_sync;
+
+    /* The default event queue exists now; arm the host-task notify and only then
+     * let the radio task start pushing received frames at us. */
+    ble_npl_event_init(&s_notify_ev, notify_cb, NULL);
+    net_set_rx_observer(on_rx);
+
     nimble_port_freertos_init(host_task);
     ESP_LOGI(TAG, "BLE Meshtastic companion starting");
 }

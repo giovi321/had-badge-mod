@@ -43,8 +43,8 @@ typedef struct _meshtastic_Position {
     int32_t altitude; /* metres MSL */
     uint32_t time; /* unix seconds */
     int32_t location_source; /* LocSource enum (varint) */
-    uint32_t ground_speed;
-    uint32_t ground_track; /* 1/100 degree */
+    uint32_t ground_speed; /* metres per second */
+    uint32_t ground_track; /* heading, degrees * 1e-5 */
     uint32_t sats_in_view;
     uint32_t precision_bits;
 } meshtastic_Position;
