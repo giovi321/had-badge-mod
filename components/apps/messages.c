@@ -271,13 +271,34 @@ static void show_toast(const char *line)
 static void update_to(void)
 {
     if (!s_to) return;
-    if (s_target == 0xFFFFFFFFu) { lv_label_set_text(s_to, "To: Broadcast"); return; }
-    char nm[40], b[64];
+    if (s_target == 0xFFFFFFFFu) {                 /* broadcast: muted */
+        lv_obj_set_style_text_color(s_to, theme_hex(C_TEXT_DIM), 0);
+        lv_label_set_text(s_to, "To: Broadcast (everyone)");
+        return;
+    }
+    char nm[40], b[64];                            /* private: amber, stands out */
     node_record_t *r = nodedb_get(net_nodedb(), s_target);
     if (r) net_node_label(s_target, r->long_name, r->short_name, nm, sizeof nm);
     else net_node_id_str(s_target, nm);
-    snprintf(b, sizeof b, "To: %s", nm);
+    lv_obj_set_style_text_color(s_to, theme_hex(C_ACCENT), 0);
+    snprintf(b, sizeof b, "To: %s (private)", nm);
     lv_label_set_text(s_to, b);
+}
+
+/* F2 = "To": cycle the recipient Broadcast -> each heard node -> Broadcast, so
+ * choosing who a message goes to never leaves the chat. */
+static void cycle_target(void)
+{
+    nodedb_t *db = net_nodedb();
+    if (s_target == 0xFFFFFFFFu) {
+        s_target = db->count > 0 ? db->nodes[0].num : 0xFFFFFFFFu;
+    } else {
+        int idx = -1;
+        for (int i = 0; i < db->count; i++)
+            if (db->nodes[i].num == s_target) { idx = i; break; }
+        s_target = (idx >= 0 && idx + 1 < db->count) ? db->nodes[idx + 1].num : 0xFFFFFFFFu;
+    }
+    update_to();
 }
 
 static void render_history(void)
@@ -357,7 +378,7 @@ static void build(lv_obj_t **screen, lv_group_t *group)
     *screen = f.screen;
     render_history();
     lv_obj_scroll_to_y(s_list, LV_COORD_MAX, LV_ANIM_OFF);
-    menubar_set_labels("Send", "Bcast", "", "", "");
+    menubar_set_labels("Send", "To", "", "", "");
     update_to();
     if (s_toast) lv_obj_delete(s_toast);   /* chat is on screen; toast is noise */
     s_active = true;
@@ -366,7 +387,7 @@ static void build(lv_obj_t **screen, lv_group_t *group)
 static void on_fkey(int n)
 {
     if (n == 1) send_current();
-    else if (n == 2) { s_target = 0xFFFFFFFFu; update_to(); }   /* back to broadcast */
+    else if (n == 2) cycle_target();   /* cycle Broadcast <-> nodes */
 }
 static void close(void)
 {
