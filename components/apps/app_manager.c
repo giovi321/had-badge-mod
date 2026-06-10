@@ -157,13 +157,12 @@ static void manager_tick(lv_timer_t *t)
     } else {
         for (int n = 1; n <= 4; n++) {
             if (!fk[n - 1]) continue;
-            /* If the bar is auto-hidden, reveal it AND perform the action, so a
-             * key never feels dead (the labels were shown on entry). Back (F5 /
-             * Esc) is handled above. */
-            if (s_bar_auto) {
-                if (s_bar_hidden) bar_reveal();
-                else { s_bar_since = lv_tick_get(); s_bar_delay = BAR_HIDE_AFTER_MS; }
-            }
+            /* Bar auto-hidden: the first app-action key only reveals the bar (so
+             * the labels can be read), WITHOUT executing. Press again, with the
+             * bar visible, to run the function. Back (F5 / Esc) still exits in one
+             * press, handled above. */
+            if (s_bar_auto && s_bar_hidden) { bar_reveal(); break; }
+            if (s_bar_auto) { s_bar_since = lv_tick_get(); s_bar_delay = BAR_HIDE_AFTER_MS; }
             int cur = s_current;
             if (s_apps[s_current]->on_fkey) s_apps[s_current]->on_fkey(n);
             if (s_current != cur) break;   /* app switched: stop dispatching */
