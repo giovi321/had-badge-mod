@@ -7,6 +7,7 @@
 #include "ui/menubar.h"
 #include "net/backend.h"
 #include "net/message.h"
+#include "services/services.h"
 #include "drivers/gps.h"
 #include "util/geo.h"
 
@@ -133,7 +134,7 @@ static void build(lv_obj_t **screen, lv_group_t *group)
     s_rendered = -1;
     render();
     *screen = f.screen;
-    menubar_set_labels("Message", "Track", "", "", "");
+    menubar_set_labels("Message", "Track", "Announce", "", "");
 }
 
 static void tick(void)
@@ -145,6 +146,7 @@ static void on_fkey(int n)
 {
     if (n == 1) message_focused();
     else if (n == 2) track_focused();
+    else if (n == 3) mesh_svc_announce_now();   /* tell the mesh we're here now */
 }
 
 const app_def_t *app_nodes(void)

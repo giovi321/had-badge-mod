@@ -11,6 +11,7 @@
 #include "ui/colors.h"
 #include "ui/menubar.h"
 #include "net/backend.h"
+#include "services/services.h"
 #include "core/settings.h"
 #include "app_config.h"
 
@@ -378,7 +379,7 @@ static void build(lv_obj_t **screen, lv_group_t *group)
     *screen = f.screen;
     render_history();
     lv_obj_scroll_to_y(s_list, LV_COORD_MAX, LV_ANIM_OFF);
-    menubar_set_labels("Send", "To", "", "", "");
+    menubar_set_labels("Send", "To", "Announce", "", "");
     update_to();
     if (s_toast) lv_obj_delete(s_toast);   /* chat is on screen; toast is noise */
     s_active = true;
@@ -388,6 +389,7 @@ static void on_fkey(int n)
 {
     if (n == 1) send_current();
     else if (n == 2) cycle_target();   /* cycle Broadcast <-> nodes */
+    else if (n == 3) { mesh_svc_announce_now(); show_toast("Announced to the mesh"); }
 }
 static void close(void)
 {
