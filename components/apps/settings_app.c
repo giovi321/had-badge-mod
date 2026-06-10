@@ -11,6 +11,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 static settings_t *s_reg;
 static lv_group_t *s_group;
@@ -20,8 +21,10 @@ static int s_level;            /* 0 groups, 1 list, 2 editor */
 static char s_group_name[24];
 static const setting_t *s_cur; /* setting being edited at level 2 */
 static int s_list_focus;       /* remembered row index at level 1 */
-static lv_obj_t *s_edit_ta;    /* text editor */
+static lv_obj_t *s_edit_ta;    /* text / number entry field */
 static lv_obj_t *s_edit_val;   /* number editor value label */
+static lv_obj_t *s_slider;     /* number editor slider */
+static long s_int_min, s_int_max, s_int_step;  /* number editor bounds */
 
 void settings_app_init(settings_t *reg) { s_reg = reg; }
 
@@ -40,6 +43,7 @@ static void clear_body(void)
     lv_obj_clean(s_body);
     s_edit_ta = NULL;
     s_edit_val = NULL;
+    s_slider = NULL;
     lv_obj_set_flex_flow(s_body, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_row(s_body, 3, 0);
     lv_obj_set_scroll_dir(s_body, LV_DIR_VER);
@@ -162,24 +166,57 @@ static void pick_choice(lv_obj_t *btn)
 static void enum_key(lv_event_t *e) { nav(e); }
 static void enum_click(lv_event_t *e) { pick_choice(lv_event_get_target(e)); }
 
-/* int: stepper */
-static void int_adjust(int dir)
+/* int: slider + numeric entry. The slider mirrors the value; F2/F4 and the Up/Down
+ * arrows nudge it by an auto step; typing in the field sets an exact value. */
+static void int_refresh(long v)
 {
-    settings_set_int(s_reg, s_cur->key, settings_get_int(s_reg, s_cur->key) + dir);
-    net_reload_config();
-    if (s_edit_val) {
-        char b[32];
-        snprintf(b, sizeof b, "%ld", settings_get_int(s_reg, s_cur->key));
-        lv_label_set_text(s_edit_val, b);
-    }
+    char b[24];
+    snprintf(b, sizeof b, "%ld", v);
+    if (s_edit_val) lv_label_set_text(s_edit_val, b);
+    if (s_slider) lv_slider_set_value(s_slider, (int32_t)v, LV_ANIM_OFF);
+    if (s_edit_ta && strcmp(lv_textarea_get_text(s_edit_ta), b) != 0)
+        lv_textarea_set_text(s_edit_ta, b);
 }
-static void int_key(lv_event_t *e)
+
+static void int_commit(long v)
+{
+    if (v < s_int_min) v = s_int_min;
+    if (v > s_int_max) v = s_int_max;
+    settings_set_int(s_reg, s_cur->key, v);
+    net_reload_config();
+    int_refresh(v);
+}
+
+static void int_adjust(int dir)   /* dir = -1 / +1, scaled by the auto step */
+{
+    int_commit(settings_get_int(s_reg, s_cur->key) + (long)dir * s_int_step);
+}
+
+/* Live feedback while typing: move the slider/value but commit only on Enter. */
+static void int_ta_changed(lv_event_t *e)
+{
+    (void)e;
+    if (!s_edit_ta) return;
+    long v = atol(lv_textarea_get_text(s_edit_ta));
+    if (v < s_int_min) v = s_int_min;
+    if (v > s_int_max) v = s_int_max;
+    if (s_slider) lv_slider_set_value(s_slider, (int32_t)v, LV_ANIM_OFF);
+    if (s_edit_val) { char b[24]; snprintf(b, sizeof b, "%ld", v); lv_label_set_text(s_edit_val, b); }
+}
+
+static void int_ta_key(lv_event_t *e)
 {
     uint32_t k = lv_event_get_key(e);
-    if (k == LV_KEY_LEFT || k == LV_KEY_DOWN) int_adjust(-1);
-    else if (k == LV_KEY_RIGHT || k == LV_KEY_UP) int_adjust(+1);
-    else if (k == LV_KEY_ENTER) back_to_list();
+    if (k == LV_KEY_UP) int_adjust(+1);          /* Up/Down nudge; Left/Right = cursor */
+    else if (k == LV_KEY_DOWN) int_adjust(-1);
 }
+
+static void int_save(void)
+{
+    if (s_edit_ta) int_commit(atol(lv_textarea_get_text(s_edit_ta)));
+    back_to_list();
+}
+static void int_ta_ready(lv_event_t *e) { if (lv_event_get_code(e) == LV_EVENT_READY) int_save(); }
 
 /* str: text field */
 static void str_save(void)
@@ -210,21 +247,49 @@ static void show_editor(const setting_t *s)
         if (focus) lv_group_focus_obj(focus);
         menubar_set_labels("", "", "Select", "", "Back");
     } else if (s->type == SET_INT) {
-        lv_obj_t *btn = lv_button_create(s_body);
-        lv_obj_set_width(btn, LV_PCT(100));
-        lv_obj_add_style(btn, &st_card_sel, 0);
-        s_edit_val = lv_label_create(btn);
+        s_int_min = s->has_min ? s->minv : 0;
+        s_int_max = s->has_max ? s->maxv : 1000;
+        if (s_int_max <= s_int_min) s_int_max = s_int_min + 1;
+        long span = s_int_max - s_int_min;
+        s_int_step = span > 50 ? span / 50 : 1;     /* coarse on big ranges */
+        long cur = settings_get_int(s_reg, s->key);
+        if (cur < s_int_min) cur = s_int_min;
+        if (cur > s_int_max) cur = s_int_max;
+
+        s_edit_val = lv_label_create(s_body);       /* big current value */
         lv_obj_set_style_text_font(s_edit_val, theme_font_title(), 0);
-        char b[32];
-        snprintf(b, sizeof b, "%ld", settings_get_int(s_reg, s->key));
-        lv_label_set_text(s_edit_val, b);
-        lv_obj_center(s_edit_val);
-        lv_obj_add_event_cb(btn, int_key, LV_EVENT_KEY, NULL);
-        if (s_group) { lv_group_add_obj(s_group, btn); lv_group_focus_obj(btn); }
+        lv_obj_set_style_text_color(s_edit_val, theme_hex(C_ACCENT), 0);
+
+        s_slider = lv_slider_create(s_body);        /* visual position in range */
+        lv_obj_set_width(s_slider, LV_PCT(100));
+        lv_slider_set_range(s_slider, (int32_t)s_int_min, (int32_t)s_int_max);
+        lv_obj_remove_flag(s_slider, LV_OBJ_FLAG_CLICKABLE);   /* set via keys, not touch */
+        lv_obj_set_style_bg_color(s_slider, theme_hex(C_SURFACE_2), LV_PART_MAIN);
+        lv_obj_set_style_bg_color(s_slider, theme_hex(C_ACCENT), LV_PART_INDICATOR);
+        lv_obj_set_style_bg_color(s_slider, theme_hex(C_ACCENT), LV_PART_KNOB);
+
+        lv_obj_t *range = lv_label_create(s_body);  /* explain the range */
+        lv_obj_add_style(range, &st_hint, 0);
+        char rb[48];
+        snprintf(rb, sizeof rb, "Range %ld to %ld", s_int_min, s_int_max);
+        lv_label_set_text(range, rb);
+
+        s_edit_ta = lv_textarea_create(s_body);     /* type an exact value */
+        lv_textarea_set_one_line(s_edit_ta, true);
+        lv_textarea_set_accepted_chars(s_edit_ta, "-0123456789");
+        lv_obj_set_width(s_edit_ta, LV_PCT(100));
+        lv_obj_add_style(s_edit_ta, &st_input, 0);
+        lv_obj_add_event_cb(s_edit_ta, int_ta_changed, LV_EVENT_VALUE_CHANGED, NULL);
+        lv_obj_add_event_cb(s_edit_ta, int_ta_key, LV_EVENT_KEY, NULL);
+        lv_obj_add_event_cb(s_edit_ta, int_ta_ready, LV_EVENT_READY, NULL);
+        if (s_group) { lv_group_add_obj(s_group, s_edit_ta); lv_group_focus_obj(s_edit_ta); }
+
+        int_refresh(cur);                           /* fill label + slider + field */
+
         lv_obj_t *hint = lv_label_create(s_body);
         lv_obj_add_style(hint, &st_hint, 0);
-        lv_label_set_text(hint, "Left / Right or F2 / F4 to change");
-        menubar_set_labels("", LV_SYMBOL_MINUS, "", LV_SYMBOL_PLUS, "Back");
+        lv_label_set_text(hint, "Type a value, or F2 / F4 to adjust, then Enter");
+        menubar_set_labels("Save", LV_SYMBOL_MINUS, "", LV_SYMBOL_PLUS, "Back");
     } else { /* SET_STR */
         char cur[160];
         settings_get_str(s_reg, s->key, cur, sizeof cur);
@@ -261,6 +326,7 @@ static void on_fkey(int n)
     lv_obj_t *f = lv_group_get_focused(s_group);
     if (s_level == 2 && s_cur) {
         if (n == 1 && s_cur->type == SET_STR) { str_save(); return; }
+        if (n == 1 && s_cur->type == SET_INT) { int_save(); return; }
         if (n == 2 && s_cur->type == SET_INT) { int_adjust(-1); return; }
         if (n == 4 && s_cur->type == SET_INT) { int_adjust(+1); return; }
         if (n == 3 && s_cur->type == SET_ENUM && f) { pick_choice(f); return; }
