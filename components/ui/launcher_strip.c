@@ -89,7 +89,9 @@ lv_obj_t *launcher_strip_create(lv_obj_t *parent, const strip_item_t *items, int
         lv_obj_set_style_text_font(icon, theme_font_title(), 0);
 
         lv_obj_t *name = lv_label_create(tile);
-        lv_label_set_long_mode(name, LV_LABEL_LONG_DOT);   /* single line, ellipsis */
+        /* Wrap so a long name can use two lines; LVGL breaks at spaces and at the
+         * hyphen in "Bread-crumbs", so it splits right after the dash. */
+        lv_label_set_long_mode(name, LV_LABEL_LONG_WRAP);
         lv_obj_set_width(name, TILE_W - 8);
         lv_obj_set_style_text_align(name, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_color(name, theme_hex(C_TEXT), 0);

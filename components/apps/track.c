@@ -75,7 +75,7 @@ static void tick(void)
 const app_def_t *app_track(void)
 {
     static const app_def_t def = {
-        .name = "Breadcrumbs", .icon = LV_SYMBOL_SAVE,
+        .name = "Bread-crumbs", .icon = LV_SYMBOL_SAVE,   /* hyphen lets the tile wrap to 2 lines */
         .build = build, .on_fkey = on_fkey, .tick = tick,
     };
     return &def;
