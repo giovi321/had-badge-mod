@@ -392,10 +392,9 @@ static void on_fkey(int n)
 static void close(void)
 {
     s_active = false;
-    /* Always reopen on Broadcast: a node-targeted chat must not silently keep
-     * addressing that node the next time Messages is opened from the launcher.
-     * (Nodes -> Message still works: it sets the target after this runs.) */
-    s_target = 0xFFFFFFFFu;
+    /* Remember the recipient across app switches: the target now only changes
+     * deliberately (Nodes -> Message, or F2 "To"), and the "To:" line always
+     * shows it, so there is nothing hidden to reset. */
     if (s_dirty) { msg_save(); s_dirty = false; s_save_throttle = 0; }
 }
 
