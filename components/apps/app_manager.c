@@ -72,13 +72,21 @@ static void kp_read(lv_indev_t *indev, lv_indev_data_t *data)
 
 static void load_screen(lv_obj_t *scr)
 {
+    /* If this swap was triggered from inside a key event (ENTER on a list row or
+     * tile), swallow the in-flight key release: otherwise LVGL delivers it to the
+     * new screen's auto-focused first widget as a CLICK (e.g. opening Nodes
+     * "clicked" its first row and jumped straight into Messages). */
+    if (lv_indev_get_active_obj()) lv_indev_wait_release(s_indev);
+
     lv_obj_t *old = s_screen;
     s_screen = scr;
     lv_screen_load(scr);
     if (old && old != scr) lv_obj_delete(old);
 }
 
-static void on_launch(int index) { app_manager_launch(index); }
+/* Launcher-initiated: remember the tile so Back lands on it. Programmatic
+ * app-to-app jumps (Nodes -> Messages) must NOT move the home focus. */
+static void on_launch(int index) { s_home_focus = index; app_manager_launch(index); }
 
 void app_manager_go_home(void)
 {
@@ -100,7 +108,6 @@ void app_manager_launch(int index)
     ESP_LOGI(TAG, "-> launch %d (%s)", index, s_apps[index]->name);
     if (s_current >= 0 && s_apps[s_current]->close) s_apps[s_current]->close();
     s_current = index;
-    s_home_focus = index;          /* land back here when we return home */
     lv_group_remove_all_objs(s_group);
     lv_obj_t *scr = NULL;
     s_apps[index]->build(&scr, s_group);
@@ -132,18 +139,31 @@ static void go_back(void)
 static void manager_tick(lv_timer_t *t)
 {
     (void)t;
-    if (keyboard_esc_pressed() && s_current >= 0) { go_back(); return; }
-    for (int n = 1; n <= 5; n++) {
-        if (!keyboard_f_pressed(n)) continue;
-        if (s_current >= 0) {
-            /* While the bar is hidden, the first F-key only brings it back. */
-            if (s_bar_auto && s_bar_hidden) { bar_reveal(); return; }
-            if (s_bar_auto) { s_bar_since = lv_tick_get(); s_bar_delay = BAR_HIDE_AFTER_MS; }
-            if (n == 5) { go_back(); return; }               /* F5 = Back, always */
-            if (s_apps[s_current]->on_fkey) s_apps[s_current]->on_fkey(n);
-        } else if (n == 1) {  /* home: F1 = Open focused tile */
+    /* Drain every edge flag exactly once per tick, so a key pressed just before
+     * a navigation cannot fire a tick later against the wrong screen. */
+    bool esc = keyboard_esc_pressed();
+    bool fk[5];
+    for (int n = 1; n <= 5; n++) fk[n - 1] = keyboard_f_pressed(n);
+
+    if ((esc || fk[4]) && s_current >= 0) {
+        /* Esc and F5/Back are literally the same action: always one press,
+         * regardless of the auto-hidden bar (which go_home re-shows anyway). */
+        go_back();
+    } else if (s_current < 0) {
+        if (fk[0]) {  /* home: F1 = Open focused tile */
             lv_obj_t *f = lv_group_get_focused(s_group);
-            if (f) app_manager_launch((int)(intptr_t)lv_obj_get_user_data(f));
+            if (f) on_launch((int)(intptr_t)lv_obj_get_user_data(f));
+        }
+    } else {
+        for (int n = 1; n <= 4; n++) {
+            if (!fk[n - 1]) continue;
+            /* While the bar is auto-hidden, the first app-action key only
+             * brings it back so the labels can be read. Back is exempt above. */
+            if (s_bar_auto && s_bar_hidden) { bar_reveal(); break; }
+            if (s_bar_auto) { s_bar_since = lv_tick_get(); s_bar_delay = BAR_HIDE_AFTER_MS; }
+            int cur = s_current;
+            if (s_apps[s_current]->on_fkey) s_apps[s_current]->on_fkey(n);
+            if (s_current != cur) break;   /* app switched: stop dispatching */
         }
     }
     if (s_bar_auto && !s_bar_hidden && s_current >= 0 &&

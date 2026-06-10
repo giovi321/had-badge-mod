@@ -51,7 +51,8 @@ static void node_key(lv_event_t *e)
     uint32_t k = lv_event_get_key(e);
     if (k == LV_KEY_DOWN) lv_group_focus_next(s_group);
     else if (k == LV_KEY_UP) lv_group_focus_prev(s_group);
-    else if (k == LV_KEY_ENTER) { message_focused(); return; }
+    /* ENTER activates via node_click (LV_EVENT_CLICKED on the key release), so
+     * the launch cannot leak the release into the next screen. */
     lv_obj_t *f = lv_group_get_focused(s_group);
     if (f) lv_obj_scroll_to_view(f, LV_ANIM_ON);
 }
@@ -60,6 +61,7 @@ static void node_click(lv_event_t *e) { (void)e; message_focused(); }
 static void render(void)
 {
     nodedb_t *db = net_nodedb();
+    uint32_t keep = focused_num();   /* keep focus/scroll across re-renders */
     lv_obj_clean(s_list);
     uint32_t now = (uint32_t)time(NULL);
     gps_fix_t fix;
@@ -99,6 +101,17 @@ static void render(void)
         lv_obj_set_width(l, LV_PCT(100));
         lv_label_set_text(l, line);
         if (s_group) lv_group_add_obj(s_group, btn);
+    }
+    if (keep) {
+        uint32_t cnt = lv_obj_get_child_count(s_list);
+        for (uint32_t i = 0; i < cnt; i++) {
+            lv_obj_t *btn = lv_obj_get_child(s_list, (int32_t)i);
+            if ((uint32_t)(uintptr_t)lv_obj_get_user_data(btn) == keep) {
+                lv_group_focus_obj(btn);
+                lv_obj_scroll_to_view(btn, LV_ANIM_OFF);
+                break;
+            }
+        }
     }
     s_rendered = db->count;
 }

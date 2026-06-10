@@ -32,6 +32,10 @@ static void show_editor(const setting_t *s);
 /* --- helpers ------------------------------------------------------------ */
 static void clear_body(void)
 {
+    /* Rebuild triggered from inside a key event (ENTER on a row): swallow the
+     * in-flight release so it cannot "click" the next level's focused row
+     * (which silently toggled bools and re-opened editors). */
+    if (lv_indev_get_active_obj()) lv_indev_wait_release(lv_indev_active());
     lv_group_remove_all_objs(s_group);
     lv_obj_clean(s_body);
     s_edit_ta = NULL;
@@ -82,11 +86,9 @@ static void open_group(lv_obj_t *btn)
     s_list_focus = 0;
     show_group(s_group_name);
 }
-static void group_key(lv_event_t *e)
-{
-    nav(e);
-    if (lv_event_get_key(e) == LV_KEY_ENTER) open_group(lv_event_get_target(e));
-}
+/* ENTER activates rows via the LV_EVENT_CLICKED handlers (sent on the key
+ * release), never on the press, so the release cannot act on the next level. */
+static void group_key(lv_event_t *e) { nav(e); }
 static void group_click(lv_event_t *e) { open_group(lv_event_get_target(e)); }
 
 static void show_groups(void)
@@ -124,11 +126,7 @@ static void edit_setting(lv_obj_t *btn)
     s_level = 2;
     show_editor(s);
 }
-static void setting_key(lv_event_t *e)
-{
-    nav(e);
-    if (lv_event_get_key(e) == LV_KEY_ENTER) edit_setting(lv_event_get_target(e));
-}
+static void setting_key(lv_event_t *e) { nav(e); }
 static void setting_click(lv_event_t *e) { edit_setting(lv_event_get_target(e)); }
 
 static void show_group(const char *name)
@@ -161,11 +159,7 @@ static void pick_choice(lv_obj_t *btn)
     net_reload_config();
     back_to_list();
 }
-static void enum_key(lv_event_t *e)
-{
-    nav(e);
-    if (lv_event_get_key(e) == LV_KEY_ENTER) pick_choice(lv_event_get_target(e));
-}
+static void enum_key(lv_event_t *e) { nav(e); }
 static void enum_click(lv_event_t *e) { pick_choice(lv_event_get_target(e)); }
 
 /* int: stepper */

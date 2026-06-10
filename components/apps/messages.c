@@ -243,9 +243,18 @@ static void add_bubble(const net_message_t *m)
     }
 }
 
+static lv_obj_t *s_toast;   /* the one live toast; cleared by its DELETE event */
+
+static void toast_deleted(lv_event_t *e) { (void)e; s_toast = NULL; }
+
 static void show_toast(const char *line)
 {
+    /* One toast at a time: a burst of messages updates it in place instead of
+     * stacking overlapping cards on the top layer. */
+    if (s_toast) lv_obj_delete(s_toast);
     lv_obj_t *t = lv_obj_create(lv_layer_top());
+    s_toast = t;
+    lv_obj_add_event_cb(t, toast_deleted, LV_EVENT_DELETE, NULL);
     lv_obj_set_width(t, 300);
     lv_obj_set_height(t, LV_SIZE_CONTENT);
     lv_obj_align(t, LV_ALIGN_TOP_MID, 6, 2);
@@ -350,6 +359,7 @@ static void build(lv_obj_t **screen, lv_group_t *group)
     lv_obj_scroll_to_y(s_list, LV_COORD_MAX, LV_ANIM_OFF);
     menubar_set_labels("Send", "Bcast", "", "", "");
     update_to();
+    if (s_toast) lv_obj_delete(s_toast);   /* chat is on screen; toast is noise */
     s_active = true;
 }
 
@@ -361,6 +371,10 @@ static void on_fkey(int n)
 static void close(void)
 {
     s_active = false;
+    /* Always reopen on Broadcast: a node-targeted chat must not silently keep
+     * addressing that node the next time Messages is opened from the launcher.
+     * (Nodes -> Message still works: it sets the target after this runs.) */
+    s_target = 0xFFFFFFFFu;
     if (s_dirty) { msg_save(); s_dirty = false; s_save_throttle = 0; }
 }
 

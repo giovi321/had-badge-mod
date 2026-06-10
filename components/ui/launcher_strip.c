@@ -39,7 +39,9 @@ static void tile_event(lv_event_t *e)
         uint32_t k = lv_event_get_key(e);
         if (k == LV_KEY_RIGHT || k == LV_KEY_DOWN) { lv_group_focus_next(s_group); scroll_focused(); }
         else if (k == LV_KEY_LEFT || k == LV_KEY_UP) { lv_group_focus_prev(s_group); scroll_focused(); }
-        else if (k == LV_KEY_ENTER) { if (s_cb) s_cb(index, s_ctx); }
+        /* ENTER activates via LV_EVENT_CLICKED (sent on the key release), so the
+         * screen swap happens at the end of the key lifecycle and the release
+         * cannot leak into the newly built screen. */
     } else if (code == LV_EVENT_CLICKED) {
         if (s_cb) s_cb(index, s_ctx);
     } else if (code == LV_EVENT_FOCUSED) {
