@@ -19,6 +19,11 @@ static const char *TAG = "meshtastic";
 #define ACK_RETRY_S   25
 #define ACK_MAX_TRIES 3
 
+/* Read receipts: a private-app control message ("RRC1" magic + the read packet
+ * id), sent badge-to-badge. Standard Meshtastic nodes ignore the private port. */
+#define MTB_PORT_PRIVATE 256
+#define RR_MAGIC         0x52524331u
+
 static const char *REGION_CHOICES[] = {
     "US", "EU_868", "EU_433", "ANZ", "AU_915", "IN", "JP",
     "KR", "CN", "RU", "TW", "TH", "UA_868"
@@ -273,6 +278,16 @@ bool mtb_send_nodeinfo(void)
     return send_data(meshtastic_PortNum_NODEINFO_APP, payload, pl, MESH_BROADCAST, false, NULL, NULL, NULL);
 }
 
+bool mtb_send_read_receipt(uint32_t to, uint32_t ref_id)
+{
+    if (to == MESH_BROADCAST) return false;
+    uint8_t p[8] = {
+        (uint8_t)RR_MAGIC, (uint8_t)(RR_MAGIC >> 8), (uint8_t)(RR_MAGIC >> 16), (uint8_t)(RR_MAGIC >> 24),
+        (uint8_t)ref_id,   (uint8_t)(ref_id >> 8),   (uint8_t)(ref_id >> 16),   (uint8_t)(ref_id >> 24),
+    };
+    return send_data(MTB_PORT_PRIVATE, p, 8, to, false, NULL, NULL, NULL);
+}
+
 /* --- RX ----------------------------------------------------------------- */
 void mtb_on_frame(const uint8_t *frame, int len, float rssi, float snr, uint32_t now)
 {
@@ -374,7 +389,15 @@ void mtb_on_frame(const uint8_t *frame, int len, float rssi, float snr, uint32_t
         }
         break;
     }
-    default: break;
+    default:
+        /* Badge read receipt: a private-app control message addressed to us. */
+        if ((int)d.portnum == MTB_PORT_PRIVATE && hdr.to == g.my_node && d.payload.size >= 8) {
+            const uint8_t *b = d.payload.bytes;
+            uint32_t magic = b[0] | (b[1] << 8) | (b[2] << 16) | ((uint32_t)b[3] << 24);
+            uint32_t ref   = b[4] | (b[5] << 8) | (b[6] << 16) | ((uint32_t)b[7] << 24);
+            if (magic == RR_MAGIC && g.bus) eventbus_publish(g.bus, EV_MESSAGE_READ, &ref);
+        }
+        break;
     }
 
     if (g.bus) eventbus_publish(g.bus, EV_MESH_NODE_UPDATE, node);

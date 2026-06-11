@@ -35,6 +35,7 @@ static int s_save_throttle;     /* bg-tick counter to debounce NVS writes */
 static uint32_t s_target = 0xFFFFFFFFu;   /* recipient (broadcast by default) */
 static QueueHandle_t s_ack_q;             /* request_ids of delivered messages */
 static QueueHandle_t s_fail_q;            /* packet ids of failed (unacked) messages */
+static QueueHandle_t s_read_q;            /* packet ids reported read by the recipient */
 static lv_obj_t *s_to;                    /* "To: ..." label */
 
 void messages_set_target(uint32_t node) { s_target = node; }
@@ -52,7 +53,10 @@ typedef struct {
 static const setting_t MSG_SCHEMA[] = {
     {.key = "msg_keep", .type = SET_INT, .def = "50", .label = "Saved messages",
      .group = "Messages", .minv = 0, .maxv = MSG_HISTORY_MAX, .has_min = true, .has_max = true},
+    {.key = "msg_read_rcpt", .type = SET_BOOL, .def = "false", .label = "Send read receipts",
+     .group = "Messages", .help = "Tell other badges when you read their direct message"},
 };
+#define MSG_SCHEMA_N ((int)(sizeof MSG_SCHEMA / sizeof MSG_SCHEMA[0]))
 
 static void add_bubble(const net_message_t *m);   /* defined below */
 static void render_history(void);
@@ -89,6 +93,13 @@ static void on_fail(eb_event_t ev, const void *payload, void *ctx)
     (void)ev; (void)ctx;
     uint32_t id = *(const uint32_t *)payload;
     if (s_fail_q) xQueueSend(s_fail_q, &id, 0);
+}
+
+static void on_read(eb_event_t ev, const void *payload, void *ctx)
+{
+    (void)ev; (void)ctx;
+    uint32_t id = *(const uint32_t *)payload;
+    if (s_read_q) xQueueSend(s_read_q, &id, 0);
 }
 
 /* --- persistence (NVS "msgs"/"hist") ------------------------------------ */
@@ -173,6 +184,11 @@ static void msg_bg_tick(lv_timer_t *t)
         hist_push(&m);
         if (s_active) {
             add_bubble(&m);
+            /* Reading a direct message while the chat is open: optionally tell the
+             * sender it was read (opt-in; broadcasts never get a receipt). */
+            if (!m.outgoing && m.to_id == net_my_node() &&
+                s_settings && settings_get_bool(s_settings, "msg_read_rcpt"))
+                net_send_read_receipt(m.from_id, m.id);
         } else if (!m.outgoing) {
             got_rx = true;
             const char *who = m.long_name[0] ? m.long_name : (m.short_name[0] ? m.short_name : "node");
@@ -207,6 +223,17 @@ static void msg_bg_tick(lv_timer_t *t)
         }
     }
 
+    while (s_read_q && xQueueReceive(s_read_q, &rid, 0) == pdTRUE) {
+        for (int i = s_hist_n - 1; i >= 0; i--) {
+            if (s_hist[i].outgoing && s_hist[i].id == rid &&
+                (s_hist[i].status == MSG_STATUS_PENDING || s_hist[i].status == MSG_STATUS_DELIVERED)) {
+                s_hist[i].status = MSG_STATUS_READ;
+                acked = true;
+                break;
+            }
+        }
+    }
+
     if (changed && s_active) lv_obj_scroll_to_y(s_list, LV_COORD_MAX, LV_ANIM_ON);
     if (acked && s_active) render_history();
     if (got_rx && !s_active) show_toast(toast);
@@ -220,14 +247,16 @@ static void msg_bg_tick(lv_timer_t *t)
 void messages_init(eventbus_t *bus, settings_t *settings)
 {
     s_settings = settings;
-    if (settings) settings_register_many(settings, MSG_SCHEMA, 1);
+    if (settings) settings_register_many(settings, MSG_SCHEMA, MSG_SCHEMA_N);
     s_pending = xQueueCreate(12, sizeof(net_message_t));
     s_ack_q = xQueueCreate(8, sizeof(uint32_t));
     s_fail_q = xQueueCreate(8, sizeof(uint32_t));
+    s_read_q = xQueueCreate(8, sizeof(uint32_t));
     eventbus_subscribe(bus, EV_MESSAGE_RECEIVED, on_event, NULL);
     eventbus_subscribe(bus, EV_MESSAGE_SENT, on_event, NULL);
     eventbus_subscribe(bus, EV_MESSAGE_ACK, on_ack, NULL);
     eventbus_subscribe(bus, EV_MESSAGE_FAILED, on_fail, NULL);
+    eventbus_subscribe(bus, EV_MESSAGE_READ, on_read, NULL);
     msg_load();
     lv_timer_create(msg_bg_tick, 400, NULL);
 }
