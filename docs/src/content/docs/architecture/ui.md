@@ -37,8 +37,10 @@ from the charge level. The mapping functions are pure and host tested.
 ## Navigation
 
 The launcher is a horizontally scrolling strip of icon tiles. Left and Right move the
-selection and scroll the focused tile into view. Enter or F3 opens the focused app. The
-launcher returns to the tile you last opened.
+selection and scroll the focused tile into view. Enter or F1 (Open) opens the focused app. The
+launcher returns to the tile you last opened. The home screen also shows the firmware version
+in the top bar, small and left-aligned, as the release plus the git commit it was built from,
+for example `v0.9.1+ba3d8e7`.
 
 Inside an app, Esc or F5 goes back. F5 always shows "Back" so the control is visible.
 Function keys F1 to F4 are app specific, and the bottom bar shows their current labels.

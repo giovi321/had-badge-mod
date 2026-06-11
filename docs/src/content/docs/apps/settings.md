@@ -16,17 +16,30 @@ Settings are organised into groups so related options stay together:
 
 - Network: the active network stack.
 - Radio: region, preset, channel name, channel key, hop limit, relay mode, position sharing,
-  position interval, and transmit power.
+  position interval, how often this node announces itself, and transmit power.
 - Device: device name and short name.
 - Messages: how many messages to keep across boots.
 - GPS: enable the receiver and set its UART pins.
+- Bluetooth: enable the Meshtastic companion link.
 - Power: backlight dim timeout, off timeout, and the bright and dim levels.
 
 ## Editing
 
 Move with the arrow keys and open a setting to edit it. Booleans toggle, enumerations cycle
-through their choices, numbers step up and down, and text fields open an editor you can type
-into. Esc backs out one level.
+through their choices, and text fields open an editor you can type into. Esc backs out one
+level.
+
+A number opens a dedicated editor. It shows the current value large at the top, a slider that
+tracks where the value sits in its allowed range, and the range itself as "Range x to y". Use
+the arrow keys to step the value, or type a new one straight into the field below. Out-of-range
+entries are not accepted. F1 saves.
+
+## Announce interval
+
+Under Radio, "Announce me every (s)" sets how often the badge tells the other nodes it exists,
+by broadcasting its node info and telemetry. The default is 300 seconds. You can also send one
+straight away with the Announce function key in the Messages and Nodes apps, without changing
+this interval.
 
 ## Radio changes
 
