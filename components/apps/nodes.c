@@ -134,7 +134,7 @@ static void build(lv_obj_t **screen, lv_group_t *group)
     s_rendered = -1;
     render();
     *screen = f.screen;
-    menubar_set_labels("Message", "Track", "Announce", "", "");
+    menubar_set_labels("Message", "Track", "Announ.", "", "");
 }
 
 static void tick(void)

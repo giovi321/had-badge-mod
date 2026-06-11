@@ -379,7 +379,7 @@ static void build(lv_obj_t **screen, lv_group_t *group)
     *screen = f.screen;
     render_history();
     lv_obj_scroll_to_y(s_list, LV_COORD_MAX, LV_ANIM_OFF);
-    menubar_set_labels("Send", "To", "Announce", "", "");
+    menubar_set_labels("Send", "To", "Announ.", "", "");
     update_to();
     if (s_toast) lv_obj_delete(s_toast);   /* chat is on screen; toast is noise */
     s_active = true;
