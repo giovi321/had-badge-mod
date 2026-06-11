@@ -66,6 +66,20 @@ host_tests/                    portable test suite
 docs/                          Astro + Starlight documentation site
 ```
 
+## Roadmap
+
+Active development happens on the `dev` branch. Planned feature batch, in priority order:
+
+- [ ] "Find my people" radar / PPI scope — plot nodes by range and bearing (code complete on `dev`, on-device check pending)
+- [ ] Web tools: config backup/restore and OTA firmware update over the web UI
+- [ ] Delivery and read receipts with a retry queue and ACK tracking
+- [ ] Multi-channel threaded UI and a "mesh IRC" group chat with nicks
+- [ ] Haptics: piezo buzzer and vibration motor for notifications
+- [ ] IMU and magnetometer driver — a real compass (also upgrades Radar/Tracker/Follow heading)
+- [ ] Waypoint/POI manager — save, name, navigate, and share points over the mesh
+- [ ] BLE channel/contact provisioning for zero-typing onboarding
+- [ ] Offline vector map under the radar view
+
 ## License
 
 MIT, see [LICENSE.txt](LICENSE.txt). Uses [LVGL](https://lvgl.io),
