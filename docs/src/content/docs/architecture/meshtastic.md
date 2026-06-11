@@ -28,6 +28,14 @@ host tests:
   endian, then four zero bytes. It is the initial big-endian 128-bit counter.
 - The default PSK expands the one-byte shorthand `0x01` to the published 16-byte key.
 
+## Channels
+
+The badge can run several channels at once — a primary plus a few secondaries, each a name and
+a key. They share one frequency and are told apart by the one-byte channel hash and the key, so
+a received frame is decoded by trying each configured channel in turn. The channel-decode helper
+is portable and host-tested. Outgoing messages use the channel selected in the Messages app, and
+each stored message remembers which channel it belongs to.
+
 ## Packet format
 
 The on-air header is 16 bytes, little endian: `to`, `from`, and `id` as 32-bit values, then
@@ -53,3 +61,10 @@ Messages app records it whether or not that app is open.
 On transmit the radio task does listen-before-talk with channel activity detection. It waits
 on DIO1 for the CAD result rather than polling, backs off a bounded number of times, and
 then sends. This avoids the tight spin that once starved the MicroPython event loop.
+
+## Delivery and retries
+
+A direct message is sent with the want-ack flag and tracked in a small retry queue: if no
+routing acknowledgement returns within a timeout, the frame is retransmitted a few times and
+then marked failed. The queue is portable and host-tested. Read receipts are a separate,
+badge-only control message on a private port number that standard Meshtastic nodes ignore.

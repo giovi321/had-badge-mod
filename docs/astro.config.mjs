@@ -52,6 +52,7 @@ export default defineConfig({
             { label: 'GPS', link: '/apps/gps/' },
             { label: 'Breadcrumbs and Follow', link: '/apps/breadcrumbs/' },
             { label: 'Tracker', link: '/apps/tracker/' },
+            { label: 'Find my people (Radar)', link: '/apps/radar/' },
             { label: 'Packets', link: '/apps/packets/' },
           ],
         },

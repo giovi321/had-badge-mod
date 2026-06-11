@@ -25,8 +25,29 @@ When WiFi is up and `web_enabled` is on, the badge serves a web interface on its
   badge. It is the same schema the on-device Settings app uses, so the two stay in sync.
 - `/diag` shows the diagnostics: node id, radio config, peer count, packet counters, and the
   last signal.
+- `/import` backs up and restores the configuration.
+- `/update` flashes new firmware over the air.
 
 Radio changes made in the web form take effect after a reboot.
 
 The form prefills current values, including passwords, so treat the badge's network as
 trusted. If you host an open hotspot, anyone who joins can read and change settings.
+
+## Backup and restore
+
+Open `/import` to download a `badge-config.json` of every setting, or to paste one back to
+restore it. The download includes the channel key and WiFi password so the file can clone a
+badge; use the "without secrets" link to leave those out. A restore validates each value and
+reports how many it applied, skipped, rejected, or did not recognise. Reboot afterwards for
+radio and WiFi changes to take effect.
+
+## Firmware update (OTA)
+
+Open `/update`, choose a `had-badge-mod` application binary built for this board, and the
+badge writes it to the spare flash slot and reboots into it. If the new image fails to start
+cleanly, the bootloader rolls back to the previous one on the next reset.
+
+Over-the-air updates rely on the dual-slot partition layout, which a normal build already
+uses. The first time you move a badge onto that layout you must flash once over USB, because a
+partition-table change cannot be delivered over the air. See
+[Build and flash](/had-badge-mod/getting-started/building/) for the details.
