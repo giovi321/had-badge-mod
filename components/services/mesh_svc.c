@@ -49,6 +49,10 @@ static void mesh_task(void *arg)
         since_info += LOOP_S;
         since_pos += LOOP_S;
 
+        /* Retransmit any unacked unicasts and expire the retry queue. Uptime is
+         * a monotonic seconds clock, which is all the ack queue compares. */
+        net_tick((uint32_t)(esp_timer_get_time() / 1000000));
+
         int info_int = (int)settings_get_int(s_reg, "mesh_info_int");
         if (info_int < 30) info_int = 30;
         if (since_info >= info_int) {

@@ -26,6 +26,7 @@ set(PORTABLE
     ${ROOT}/components/core/settings_json.c
     ${ROOT}/components/core/nodedb.c
     ${ROOT}/components/net/portable/dedup.c
+    ${ROOT}/components/net/portable/ack_queue.c
     ${ROOT}/components/ui/portable/theme_map.c
     ${ROOT}/components/util/nmea.c
     ${ROOT}/components/util/geo.c

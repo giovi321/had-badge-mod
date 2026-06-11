@@ -19,6 +19,7 @@ int mtb_packet_log(net_pkt_log_t *out, int max);
 void mtb_set_rx_observer(net_rx_observer_fn fn);
 bool mtb_send_meshpacket(uint32_t to, bool want_ack, const uint8_t *data, int data_len);
 void mtb_on_frame(const uint8_t *frame, int len, float rssi, float snr, uint32_t now);
+void mtb_tick(uint32_t now);
 
 uint32_t mtb_my_node(void);
 const char *mtb_channel(void);

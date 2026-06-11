@@ -28,4 +28,6 @@ void net_on_frame(const uint8_t *frame, int len, float rssi, float snr, uint32_t
     mtb_on_frame(frame, len, rssi, snr, now);
 }
 
+void net_tick(uint32_t now) { mtb_tick(now); }
+
 void net_diag(net_diag_t *out) { mtb_diag(out); }

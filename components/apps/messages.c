@@ -34,6 +34,7 @@ static bool s_dirty;            /* history changed since last NVS save */
 static int s_save_throttle;     /* bg-tick counter to debounce NVS writes */
 static uint32_t s_target = 0xFFFFFFFFu;   /* recipient (broadcast by default) */
 static QueueHandle_t s_ack_q;             /* request_ids of delivered messages */
+static QueueHandle_t s_fail_q;            /* packet ids of failed (unacked) messages */
 static lv_obj_t *s_to;                    /* "To: ..." label */
 
 void messages_set_target(uint32_t node) { s_target = node; }
@@ -81,6 +82,13 @@ static void on_ack(eb_event_t ev, const void *payload, void *ctx)
     (void)ev; (void)ctx;
     uint32_t rid = *(const uint32_t *)payload;
     if (s_ack_q) xQueueSend(s_ack_q, &rid, 0);
+}
+
+static void on_fail(eb_event_t ev, const void *payload, void *ctx)
+{
+    (void)ev; (void)ctx;
+    uint32_t id = *(const uint32_t *)payload;
+    if (s_fail_q) xQueueSend(s_fail_q, &id, 0);
 }
 
 /* --- persistence (NVS "msgs"/"hist") ------------------------------------ */
@@ -174,13 +182,25 @@ static void msg_bg_tick(lv_timer_t *t)
         changed = true;
     }
 
-    /* Delivery acks: mark the matching sent message and repaint to add a check. */
+    /* Delivery acks / failures: update the matching sent message's status and
+     * repaint so its mark changes (check on delivery, warning on failure). */
     uint32_t rid;
     bool acked = false;
     while (s_ack_q && xQueueReceive(s_ack_q, &rid, 0) == pdTRUE) {
         for (int i = s_hist_n - 1; i >= 0; i--) {
-            if (s_hist[i].outgoing && s_hist[i].id == rid && !s_hist[i].delivered) {
-                s_hist[i].delivered = true;
+            if (s_hist[i].outgoing && s_hist[i].id == rid &&
+                s_hist[i].status == MSG_STATUS_PENDING) {
+                s_hist[i].status = MSG_STATUS_DELIVERED;
+                acked = true;
+                break;
+            }
+        }
+    }
+    while (s_fail_q && xQueueReceive(s_fail_q, &rid, 0) == pdTRUE) {
+        for (int i = s_hist_n - 1; i >= 0; i--) {
+            if (s_hist[i].outgoing && s_hist[i].id == rid &&
+                s_hist[i].status == MSG_STATUS_PENDING) {
+                s_hist[i].status = MSG_STATUS_FAILED;
                 acked = true;
                 break;
             }
@@ -203,9 +223,11 @@ void messages_init(eventbus_t *bus, settings_t *settings)
     if (settings) settings_register_many(settings, MSG_SCHEMA, 1);
     s_pending = xQueueCreate(12, sizeof(net_message_t));
     s_ack_q = xQueueCreate(8, sizeof(uint32_t));
+    s_fail_q = xQueueCreate(8, sizeof(uint32_t));
     eventbus_subscribe(bus, EV_MESSAGE_RECEIVED, on_event, NULL);
     eventbus_subscribe(bus, EV_MESSAGE_SENT, on_event, NULL);
     eventbus_subscribe(bus, EV_MESSAGE_ACK, on_ack, NULL);
+    eventbus_subscribe(bus, EV_MESSAGE_FAILED, on_fail, NULL);
     msg_load();
     lv_timer_create(msg_bg_tick, 400, NULL);
 }
@@ -229,9 +251,16 @@ static void add_bubble(const net_message_t *m)
     lv_label_set_long_mode(bubble, LV_LABEL_LONG_WRAP);
 
     if (m->outgoing) {
-        if (m->delivered) {
+        const char *mark = "";
+        switch (m->status) {
+        case MSG_STATUS_DELIVERED: mark = "  " LV_SYMBOL_OK; break;
+        case MSG_STATUS_READ:      mark = "  " LV_SYMBOL_OK LV_SYMBOL_OK; break;
+        case MSG_STATUS_FAILED:    mark = "  " LV_SYMBOL_WARNING; break;
+        default: break;   /* PENDING / NONE: no mark */
+        }
+        if (mark[0]) {
             char buf[300];
-            snprintf(buf, sizeof buf, "%s  " LV_SYMBOL_OK, m->text);
+            snprintf(buf, sizeof buf, "%s%s", m->text, mark);
             lv_label_set_text(bubble, buf);
         } else {
             lv_label_set_text(bubble, m->text);

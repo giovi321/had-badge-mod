@@ -1,6 +1,7 @@
 /* See net/backend_meshtastic.h. Ported from net/mesh/backend_meshtastic.py. */
 #include "net/backend_meshtastic.h"
 #include "net/dedup.h"
+#include "net/ack_queue.h"
 #include "mesh/packet.h"
 #include "mesh/mesh_crypto.h"
 #include "mesh/regions.h"
@@ -12,6 +13,11 @@
 #include "esp_log.h"
 
 static const char *TAG = "meshtastic";
+
+/* Unicast retry policy: resend an unacked message every ACK_RETRY_S, up to
+ * ACK_MAX_TRIES transmissions, then report it failed. */
+#define ACK_RETRY_S   25
+#define ACK_MAX_TRIES 3
 
 static const char *REGION_CHOICES[] = {
     "US", "EU_868", "EU_433", "ANZ", "AU_915", "IN", "JP",
@@ -66,8 +72,10 @@ static struct {
     dedup_t dd;
     uint32_t rx_count, tx_count, rx_raw;
     float last_rssi, last_snr;
-    uint32_t ack_pending[16];   /* packet ids of unicast sends awaiting an ack */
-    int ack_head;
+    ackq_t ackq;                       /* unicast sends awaiting a delivery ack */
+    uint8_t ackframe[ACKQ_CAP][256];   /* frame bytes to retransmit, per ackq slot */
+    int ackframe_len[ACKQ_CAP];
+    uint32_t now;                      /* last monotonic tick time (ackq clock) */
     net_pkt_log_t pktlog[32];
     int pktlog_n, pktlog_head;
 } g;
@@ -152,6 +160,7 @@ void mtb_init(settings_t *st, eventbus_t *bus, uint32_t my_node)
     g.st = st; g.bus = bus; g.my_node = my_node;
     nodedb_init(&g.db);
     dedup_init(&g.dd);
+    ackq_init(&g.ackq);
     mtb_reload();
 }
 
@@ -166,7 +175,8 @@ void mtb_radio_cfg(net_radio_cfg_t *out)
 
 /* --- TX ----------------------------------------------------------------- */
 static bool send_data(int portnum, const uint8_t *payload, int payload_len,
-                      uint32_t to_id, bool want_ack, uint32_t *out_pid)
+                      uint32_t to_id, bool want_ack, uint32_t *out_pid,
+                      uint8_t *out_frame, int *out_flen)
 {
     meshtastic_Data d = meshtastic_Data_init_zero;
     d.portnum = (meshtastic_PortNum)portnum;
@@ -186,7 +196,11 @@ static bool send_data(int portnum, const uint8_t *payload, int payload_len,
                                  g.hop_limit, g.hop_limit, want_ack);
     if (flen < 0 || !g.tx) return false;
     bool ok = g.tx(frame, flen);
-    if (ok) { g.tx_count++; if (out_pid) *out_pid = pid; }
+    if (ok) {
+        g.tx_count++;
+        if (out_pid) *out_pid = pid;
+        if (out_frame && out_flen) { memcpy(out_frame, frame, (size_t)flen); *out_flen = flen; }
+    }
     return ok;
 }
 
@@ -196,15 +210,23 @@ bool mtb_send_text_to(uint32_t to_id, const char *text)
     if (n > MSG_TEXT_MAX) n = MSG_TEXT_MAX;
     bool unicast = (to_id != MESH_BROADCAST);
     uint32_t pid = 0;
+    uint8_t frame[256];
+    int flen = 0;
     bool ok = send_data(meshtastic_PortNum_TEXT_MESSAGE_APP, (const uint8_t *)text, n,
-                        to_id, unicast, &pid);
+                        to_id, unicast, &pid, unicast ? frame : NULL, unicast ? &flen : NULL);
     if (ok && unicast) {
-        g.ack_pending[g.ack_head] = pid;
-        g.ack_head = (g.ack_head + 1) % 16;
+        int slot = ackq_add(&g.ackq, pid, to_id, g.now);
+        if (flen > 0 && flen <= (int)sizeof g.ackframe[0]) {
+            memcpy(g.ackframe[slot], frame, (size_t)flen);
+            g.ackframe_len[slot] = flen;
+        } else {
+            g.ackframe_len[slot] = 0;   /* can't retransmit; still tracked for ack/fail */
+        }
     }
     if (ok && g.bus) {
         net_message_t m = {0};
         m.kind = MSG_TEXT; m.from_id = g.my_node; m.to_id = to_id; m.id = pid; m.outgoing = true;
+        m.status = unicast ? MSG_STATUS_PENDING : MSG_STATUS_NONE;
         memcpy(m.text, text, (size_t)n); m.text[n] = 0;
         eventbus_publish(g.bus, EV_MESSAGE_SENT, &m);
     }
@@ -223,7 +245,7 @@ bool mtb_send_telemetry(int battery_pct, float voltage, uint32_t uptime_s)
     uint8_t payload[64];
     int pl = mt_telemetry_encode(payload, sizeof payload, &t);
     if (pl < 0) return false;
-    return send_data(meshtastic_PortNum_TELEMETRY_APP, payload, pl, MESH_BROADCAST, false, NULL);
+    return send_data(meshtastic_PortNum_TELEMETRY_APP, payload, pl, MESH_BROADCAST, false, NULL, NULL, NULL);
 }
 
 bool mtb_send_position(double lat, double lon, int32_t alt, uint32_t ts)
@@ -236,7 +258,7 @@ bool mtb_send_position(double lat, double lon, int32_t alt, uint32_t ts)
     uint8_t payload[80];
     int pl = mt_position_encode(payload, sizeof payload, &p);
     if (pl < 0) return false;
-    return send_data(meshtastic_PortNum_POSITION_APP, payload, pl, MESH_BROADCAST, false, NULL);
+    return send_data(meshtastic_PortNum_POSITION_APP, payload, pl, MESH_BROADCAST, false, NULL, NULL, NULL);
 }
 
 bool mtb_send_nodeinfo(void)
@@ -248,7 +270,7 @@ bool mtb_send_nodeinfo(void)
     uint8_t payload[128];
     int pl = mt_user_encode(payload, sizeof payload, &u);
     if (pl < 0) return false;
-    return send_data(meshtastic_PortNum_NODEINFO_APP, payload, pl, MESH_BROADCAST, false, NULL);
+    return send_data(meshtastic_PortNum_NODEINFO_APP, payload, pl, MESH_BROADCAST, false, NULL, NULL, NULL);
 }
 
 /* --- RX ----------------------------------------------------------------- */
@@ -287,13 +309,9 @@ void mtb_on_frame(const uint8_t *frame, int len, float rssi, float snr, uint32_t
 
     /* Delivery ack: a ROUTING reply carrying the request_id of one of our sends. */
     if (d.portnum == meshtastic_PortNum_ROUTING_APP && d.request_id != 0) {
-        for (int i = 0; i < 16; i++) {
-            if (g.ack_pending[i] == d.request_id) {
-                uint32_t rid = d.request_id;
-                if (g.bus) eventbus_publish(g.bus, EV_MESSAGE_ACK, &rid);
-                g.ack_pending[i] = 0;
-                break;
-            }
+        if (ackq_resolve(&g.ackq, d.request_id) >= 0) {
+            uint32_t rid = d.request_id;
+            if (g.bus) eventbus_publish(g.bus, EV_MESSAGE_ACK, &rid);
         }
     }
 
@@ -301,7 +319,8 @@ void mtb_on_frame(const uint8_t *frame, int len, float rssi, float snr, uint32_t
     if (s_rx_observer) s_rx_observer(hdr.from, hdr.to, hdr.id, plain, (int)pl, rssi, snr);
 
     net_message_t m = {0};
-    m.from_id = hdr.from; m.snr = snr; m.rssi = (int)rssi; m.when = now;
+    m.from_id = hdr.from; m.to_id = hdr.to; m.id = hdr.id;
+    m.snr = snr; m.rssi = (int)rssi; m.when = now;
     net_node_label(hdr.from, node->long_name, node->short_name, m.long_name, sizeof m.long_name);
     snprintf(m.short_name, sizeof m.short_name, "%s", node->short_name);
 
@@ -359,6 +378,22 @@ void mtb_on_frame(const uint8_t *frame, int len, float rssi, float snr, uint32_t
     }
 
     if (g.bus) eventbus_publish(g.bus, EV_MESH_NODE_UPDATE, node);
+}
+
+void mtb_tick(uint32_t now)
+{
+    g.now = now;
+    uint32_t retry[ACKQ_CAP], failed[ACKQ_CAP];
+    int nr = 0, nf = 0;
+    ackq_tick(&g.ackq, now, ACK_RETRY_S, ACK_MAX_TRIES,
+              retry, &nr, ACKQ_CAP, failed, &nf, ACKQ_CAP);
+    for (int i = 0; i < nr && g.tx; i++) {
+        int slot = ackq_find(&g.ackq, retry[i]);
+        if (slot >= 0 && g.ackframe_len[slot] > 0 && g.tx(g.ackframe[slot], g.ackframe_len[slot]))
+            g.tx_count++;
+    }
+    for (int i = 0; i < nf; i++)
+        if (g.bus) eventbus_publish(g.bus, EV_MESSAGE_FAILED, &failed[i]);
 }
 
 uint32_t mtb_my_node(void) { return g.my_node; }

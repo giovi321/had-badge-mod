@@ -80,4 +80,8 @@ nodedb_t *net_nodedb(void);
 /* RX entry point (radio task). now = unix seconds. */
 void net_on_frame(const uint8_t *frame, int len, float rssi, float snr, uint32_t now);
 
+/* Periodic housekeeping (retransmit unacked unicasts, expire the retry queue).
+ * now = a monotonic seconds clock (uptime); call every few seconds. */
+void net_tick(uint32_t now);
+
 #endif /* NET_BACKEND_H */
