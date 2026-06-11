@@ -28,7 +28,7 @@ void launcher_build(lv_obj_t **screen, lv_group_t *group,
     frame_create(&f, "Communicator");
 
     /* Firmware version, small + muted + left-aligned in the top bar. The commit
-     * is the ESP-IDF app version (git short hash, e.g. "0.9.1+1cd08e8"). */
+     * is the ESP-IDF app version (git short hash, e.g. "0.10.0+1cd08e8"). */
     lv_obj_t *ver = lv_label_create(f.header);
     char vb[40];
     snprintf(vb, sizeof vb, "v%s+%s", FW_VERSION, esp_app_get_description()->version);
