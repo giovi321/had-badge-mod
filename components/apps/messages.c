@@ -33,6 +33,7 @@ static settings_t *s_settings;
 static bool s_dirty;            /* history changed since last NVS save */
 static int s_save_throttle;     /* bg-tick counter to debounce NVS writes */
 static uint32_t s_target = 0xFFFFFFFFu;   /* recipient (broadcast by default) */
+static int s_view_chan = 0;               /* channel shown in the chat (= TX channel) */
 static QueueHandle_t s_ack_q;             /* request_ids of delivered messages */
 static QueueHandle_t s_fail_q;            /* packet ids of failed (unacked) messages */
 static QueueHandle_t s_read_q;            /* packet ids reported read by the recipient */
@@ -40,15 +41,25 @@ static lv_obj_t *s_to;                    /* "To: ..." label */
 
 void messages_set_target(uint32_t node) { s_target = node; }
 
-/* Compact persisted record (NVS blob), independent of the in-RAM struct. */
-typedef struct {
+/* Compact persisted records (NVS blob), independent of the in-RAM struct. */
+typedef struct {                    /* CMG1 (legacy): read for migration only */
     uint32_t from;
     uint8_t outgoing;
     uint32_t when;
     char name[24];
     char text[MSG_TEXT_MAX + 1];
+} msg_rec_v1_t;
+#define MSG_BLOB_MAGIC_V1 0x31474d43u   /* "CMG1" */
+
+typedef struct {                    /* CMG2 (current): adds the channel index */
+    uint32_t from;
+    uint8_t outgoing;
+    uint8_t channel;
+    uint32_t when;
+    char name[24];
+    char text[MSG_TEXT_MAX + 1];
 } msg_rec_t;
-#define MSG_BLOB_MAGIC 0x31474d43u  /* "CMG1" */
+#define MSG_BLOB_MAGIC 0x32474d43u      /* "CMG2" */
 
 static const setting_t MSG_SCHEMA[] = {
     {.key = "msg_keep", .type = SET_INT, .def = "50", .label = "Saved messages",
@@ -122,7 +133,8 @@ static void msg_save(void)
         const net_message_t *m = &s_hist[start + i];
         msg_rec_t r;
         memset(&r, 0, sizeof r);
-        r.from = m->from_id; r.outgoing = m->outgoing ? 1 : 0; r.when = m->when;
+        r.from = m->from_id; r.outgoing = m->outgoing ? 1 : 0;
+        r.channel = m->channel; r.when = m->when;
         snprintf(r.name, sizeof r.name, "%s", m->long_name[0] ? m->long_name : m->short_name);
         snprintf(r.text, sizeof r.text, "%s", m->text);
         memcpy(p, &r, sizeof r);
@@ -154,17 +166,32 @@ static void msg_load(void)
     uint32_t magic = p[0] | (p[1] << 8) | (p[2] << 16) | ((uint32_t)p[3] << 24);
     int count = p[4] | (p[5] << 8);
     p += 6;
-    if (magic == MSG_BLOB_MAGIC) {
+    s_hist_n = 0;
+    if (magic == MSG_BLOB_MAGIC) {                    /* CMG2: records carry a channel */
         if (6 + (size_t)count * sizeof(msg_rec_t) > blob) count = (int)((blob - 6) / sizeof(msg_rec_t));
         if (count > MSG_HISTORY_MAX) count = MSG_HISTORY_MAX;
-        s_hist_n = 0;
         for (int i = 0; i < count; i++) {
             msg_rec_t r;
             memcpy(&r, p, sizeof r);
             p += sizeof r;
             net_message_t *m = &s_hist[s_hist_n++];
             memset(m, 0, sizeof *m);
-            m->kind = MSG_TEXT; m->from_id = r.from; m->outgoing = r.outgoing; m->when = r.when;
+            m->kind = MSG_TEXT; m->from_id = r.from; m->outgoing = r.outgoing;
+            m->channel = r.channel; m->when = r.when;
+            snprintf(m->long_name, sizeof m->long_name, "%s", r.name);
+            snprintf(m->text, sizeof m->text, "%s", r.text);
+        }
+    } else if (magic == MSG_BLOB_MAGIC_V1) {          /* CMG1: legacy, no channel field */
+        if (6 + (size_t)count * sizeof(msg_rec_v1_t) > blob) count = (int)((blob - 6) / sizeof(msg_rec_v1_t));
+        if (count > MSG_HISTORY_MAX) count = MSG_HISTORY_MAX;
+        for (int i = 0; i < count; i++) {
+            msg_rec_v1_t r;
+            memcpy(&r, p, sizeof r);
+            p += sizeof r;
+            net_message_t *m = &s_hist[s_hist_n++];
+            memset(m, 0, sizeof *m);
+            m->kind = MSG_TEXT; m->from_id = r.from; m->outgoing = r.outgoing;
+            m->channel = 0; m->when = r.when;
             snprintf(m->long_name, sizeof m->long_name, "%s", r.name);
             snprintf(m->text, sizeof m->text, "%s", r.text);
         }
@@ -182,7 +209,7 @@ static void msg_bg_tick(lv_timer_t *t)
     char toast[300] = "";
     while (s_pending && xQueueReceive(s_pending, &m, 0) == pdTRUE) {
         hist_push(&m);
-        if (s_active) {
+        if (s_active && m.channel == (uint8_t)s_view_chan) {
             add_bubble(&m);
             /* Reading a direct message while the chat is open: optionally tell the
              * sender it was read (opt-in; broadcasts never get a receipt). */
@@ -330,18 +357,34 @@ static void show_toast(const char *line)
 static void update_to(void)
 {
     if (!s_to) return;
+    char chan[40] = "";
+    if (net_chan_count() > 1)
+        snprintf(chan, sizeof chan, "   [%s]", net_chan_name(s_view_chan));
     if (s_target == 0xFFFFFFFFu) {                 /* broadcast: muted */
         lv_obj_set_style_text_color(s_to, theme_hex(C_TEXT_DIM), 0);
-        lv_label_set_text(s_to, "To: Broadcast (everyone)");
+        char b[96];
+        snprintf(b, sizeof b, "To: Broadcast (everyone)%s", chan);
+        lv_label_set_text(s_to, b);
         return;
     }
-    char nm[40], b[64];                            /* private: amber, stands out */
+    char nm[40], b[140];                           /* private: amber, stands out */
     node_record_t *r = nodedb_get(net_nodedb(), s_target);
     if (r) net_node_label(s_target, r->long_name, r->short_name, nm, sizeof nm);
     else net_node_id_str(s_target, nm);
     lv_obj_set_style_text_color(s_to, theme_hex(C_ACCENT), 0);
-    snprintf(b, sizeof b, "To: %s (private)", nm);
+    snprintf(b, sizeof b, "To: %s (private)%s", nm, chan);
     lv_label_set_text(s_to, b);
+}
+
+/* F3 = "Ch": cycle which channel ("room") the chat shows and sends on. */
+static void cycle_channel(void)
+{
+    int n = net_chan_count();
+    if (n <= 1) return;
+    s_view_chan = (s_view_chan + 1) % n;
+    net_chan_set_active(s_view_chan);   /* the viewed channel is also the send channel */
+    update_to();
+    render_history();
 }
 
 /* F2 = "To": cycle the recipient Broadcast -> each heard node -> Broadcast, so
@@ -363,7 +406,8 @@ static void cycle_target(void)
 static void render_history(void)
 {
     lv_obj_clean(s_list);
-    for (int i = 0; i < s_hist_n; i++) add_bubble(&s_hist[i]);
+    for (int i = 0; i < s_hist_n; i++)
+        if (s_hist[i].channel == (uint8_t)s_view_chan) add_bubble(&s_hist[i]);
     lv_obj_scroll_to_y(s_list, LV_COORD_MAX, LV_ANIM_OFF);
 }
 
@@ -437,7 +481,7 @@ static void build(lv_obj_t **screen, lv_group_t *group)
     *screen = f.screen;
     render_history();
     lv_obj_scroll_to_y(s_list, LV_COORD_MAX, LV_ANIM_OFF);
-    menubar_set_labels("Send", "To", "Announ.", "", "");
+    menubar_set_labels("Send", "To", "Ch", "Announ.", "");
     update_to();
     if (s_toast) lv_obj_delete(s_toast);   /* chat is on screen; toast is noise */
     s_active = true;
@@ -446,8 +490,9 @@ static void build(lv_obj_t **screen, lv_group_t *group)
 static void on_fkey(int n)
 {
     if (n == 1) send_current();
-    else if (n == 2) cycle_target();   /* cycle Broadcast <-> nodes */
-    else if (n == 3) { mesh_svc_announce_now(); show_toast("Announced to the mesh"); }
+    else if (n == 2) cycle_target();    /* cycle Broadcast <-> nodes */
+    else if (n == 3) cycle_channel();   /* cycle channel ("room") */
+    else if (n == 4) { mesh_svc_announce_now(); show_toast("Announced to the mesh"); }
 }
 static void close(void)
 {
