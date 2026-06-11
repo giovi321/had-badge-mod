@@ -77,30 +77,50 @@ static void render(void)
     }
     for (int i = 0; i < db->count; i++) {
         node_record_t *r = &db->nodes[i];
-        char label[64], line[140], nav[28] = "", bat[12] = "";
+        char label[64], line1[110], line2[80], bat[12] = "";
         net_node_label(r->num, r->long_name, r->short_name, label, sizeof label);
         long age = now ? (long)(now - r->last_heard) : 0;
         if (r->has_telemetry && r->battery) snprintf(bat, sizeof bat, "   %d%%", r->battery);
-        if (havegps && r->has_position) {
+        snprintf(line1, sizeof line1, "%s   SNR %.0f   %lds%s", label, (double)r->snr, age, bat);
+
+        /* Second line: the node's reported coordinates (shown whenever it has a
+         * position, even with no GPS fix here), plus distance + heading when we
+         * do have our own fix. */
+        line2[0] = 0;
+        if (r->has_position) {
             double nlat = r->lat_i / 1e7, nlon = r->lon_i / 1e7;
-            double dist = geo_distance_m(fix.lat, fix.lon, nlat, nlon);
-            const char *card = cardinal(geo_bearing_deg(fix.lat, fix.lon, nlat, nlon));
-            if (dist >= 1000.0) snprintf(nav, sizeof nav, "   %.1fkm %s", dist / 1000.0, card);
-            else snprintf(nav, sizeof nav, "   %.0fm %s", dist, card);
+            char nav[32] = "";
+            if (havegps) {
+                double dist = geo_distance_m(fix.lat, fix.lon, nlat, nlon);
+                const char *card = cardinal(geo_bearing_deg(fix.lat, fix.lon, nlat, nlon));
+                if (dist >= 1000.0) snprintf(nav, sizeof nav, "   %.1fkm %s", dist / 1000.0, card);
+                else snprintf(nav, sizeof nav, "   %.0fm %s", dist, card);
+            }
+            snprintf(line2, sizeof line2, LV_SYMBOL_GPS " %.5f, %.5f%s", nlat, nlon, nav);
         }
-        snprintf(line, sizeof line, "%s   SNR %.0f   %lds%s%s", label, (double)r->snr, age, bat, nav);
 
         lv_obj_t *btn = lv_button_create(s_list);
         lv_obj_set_width(btn, LV_PCT(100));
+        lv_obj_set_height(btn, LV_SIZE_CONTENT);
         lv_obj_add_style(btn, &st_card, 0);
         lv_obj_add_style(btn, &st_card_sel, LV_STATE_FOCUSED);
         lv_obj_set_user_data(btn, (void *)(uintptr_t)r->num);
         lv_obj_add_event_cb(btn, node_key, LV_EVENT_KEY, NULL);
         lv_obj_add_event_cb(btn, node_click, LV_EVENT_CLICKED, NULL);
+        lv_obj_set_flex_flow(btn, LV_FLEX_FLOW_COLUMN);
+        lv_obj_set_style_pad_row(btn, 1, 0);
+
         lv_obj_t *l = lv_label_create(btn);
         lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
         lv_obj_set_width(l, LV_PCT(100));
-        lv_label_set_text(l, line);
+        lv_label_set_text(l, line1);
+        if (line2[0]) {
+            lv_obj_t *l2 = lv_label_create(btn);
+            lv_label_set_long_mode(l2, LV_LABEL_LONG_DOT);
+            lv_obj_set_width(l2, LV_PCT(100));
+            lv_obj_set_style_text_color(l2, theme_hex(C_TEXT_DIM), 0);
+            lv_label_set_text(l2, line2);
+        }
         if (s_group) lv_group_add_obj(s_group, btn);
     }
     if (keep) {
