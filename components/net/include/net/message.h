@@ -25,6 +25,7 @@ typedef struct {
     uint32_t id;              /* packet id (for ack matching) */
     bool outgoing;             /* true if we sent it */
     uint8_t status;            /* msg_status_t: delivery/read state */
+    uint8_t channel;           /* index of the channel this message is on */
     char text[MSG_TEXT_MAX + 1];
     double lat, lon;
     int32_t alt;

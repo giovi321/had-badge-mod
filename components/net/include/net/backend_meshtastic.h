@@ -24,6 +24,10 @@ void mtb_tick(uint32_t now);
 
 uint32_t mtb_my_node(void);
 const char *mtb_channel(void);
+int mtb_chan_count(void);
+int mtb_chan_active(void);
+void mtb_chan_set_active(int idx);
+const char *mtb_chan_name(int idx);
 int mtb_peers(void);
 nodedb_t *mtb_nodedb(void);
 void mtb_diag(net_diag_t *out);

@@ -76,6 +76,12 @@ bool net_send_read_receipt(uint32_t to, uint32_t ref_id);
 
 uint32_t net_my_node(void);
 const char *net_channel_name(void);
+
+/* Channels (multi-channel "rooms"). Channel 0 is the primary. */
+int net_chan_count(void);
+int net_chan_active(void);              /* the channel outgoing messages use */
+void net_chan_set_active(int idx);
+const char *net_chan_name(int idx);     /* "" if idx is out of range */
 int net_peer_count(void);
 nodedb_t *net_nodedb(void);
 

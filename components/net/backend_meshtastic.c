@@ -2,6 +2,7 @@
 #include "net/backend_meshtastic.h"
 #include "net/dedup.h"
 #include "net/ack_queue.h"
+#include "mesh/channels.h"
 #include "mesh/packet.h"
 #include "mesh/mesh_crypto.h"
 #include "mesh/regions.h"
@@ -43,6 +44,12 @@ static const setting_t MESH_SCHEMA[] = {
      .group = "Radio", .choices = PRESET_CHOICES, .nchoices = 9},
     {.key = "mesh_chan", .type = SET_STR, .def = "LongFast", .label = "Channel name", .group = "Radio"},
     {.key = "mesh_psk", .type = SET_STR, .def = "AQ==", .label = "Channel key (b64)", .group = "Radio", .secret = true},
+    {.key = "ch1_name", .type = SET_STR, .def = "", .label = "Channel 2 name", .group = "Channels"},
+    {.key = "ch1_psk", .type = SET_STR, .def = "", .label = "Channel 2 key (b64)", .group = "Channels", .secret = true},
+    {.key = "ch2_name", .type = SET_STR, .def = "", .label = "Channel 3 name", .group = "Channels"},
+    {.key = "ch2_psk", .type = SET_STR, .def = "", .label = "Channel 3 key (b64)", .group = "Channels", .secret = true},
+    {.key = "ch3_name", .type = SET_STR, .def = "", .label = "Channel 4 name", .group = "Channels"},
+    {.key = "ch3_psk", .type = SET_STR, .def = "", .label = "Channel 4 key (b64)", .group = "Channels", .secret = true},
     {.key = "mesh_hop", .type = SET_INT, .def = "3", .label = "Hop limit", .group = "Radio",
      .minv = 0, .maxv = 7, .has_min = true, .has_max = true},
     {.key = "mesh_relay", .type = SET_BOOL, .def = "false", .label = "Relay others (router)", .group = "Radio"},
@@ -63,9 +70,9 @@ static struct {
     eventbus_t *bus;
     uint32_t my_node;
     net_tx_fn_t tx;
-    char channel[24];
-    uint8_t psk[32];
-    int psk_len;
+    mesh_chan_t chans[MESH_MAX_CHAN];
+    int nchan;
+    int tx_chan;               /* index of the channel outgoing messages use */
     int hop_limit;
     bool rebroadcast;
     int tx_power;
@@ -110,8 +117,9 @@ bool mtb_send_meshpacket(uint32_t to, bool want_ack, const uint8_t *data, int da
     uint8_t frame[256];
     uint32_t pid = esp_random();
     if (!pid) pid = 1;
-    int flen = mesh_build_packet(frame, sizeof frame, to, g.my_node, pid, g.channel,
-                                 g.psk, (size_t)g.psk_len, data, (size_t)data_len,
+    int flen = mesh_build_packet(frame, sizeof frame, to, g.my_node, pid,
+                                 g.chans[g.tx_chan].name, g.chans[g.tx_chan].psk,
+                                 g.chans[g.tx_chan].psk_len, data, (size_t)data_len,
                                  g.hop_limit, g.hop_limit, want_ack);
     if (flen < 0 || !g.tx) return false;
     bool ok = g.tx(frame, flen);
@@ -129,13 +137,30 @@ void mtb_reload(void)
     settings_t *st = g.st;
     settings_get_str(st, "mesh_region", g.region, sizeof g.region);
     settings_get_str(st, "mesh_preset", g.preset, sizeof g.preset);
-    settings_get_str(st, "mesh_chan", g.channel, sizeof g.channel);
-
-    char b64[48];
-    settings_get_str(st, "mesh_psk", b64, sizeof b64);
-    int n = mesh_parse_psk_b64(b64, g.psk);
-    g.psk_len = (n < 0) ? 1 : n;
-    if (n < 0) g.psk[0] = 0x01;          /* fall back to default channel */
+    /* Primary channel (0), then up to MESH_MAX_CHAN-1 secondaries (empty = off).
+     * All channels share one frequency, separated by their hash + PSK. */
+    static const char *NK[MESH_MAX_CHAN] = {"mesh_chan", "ch1_name", "ch2_name", "ch3_name"};
+    static const char *PK[MESH_MAX_CHAN] = {"mesh_psk", "ch1_psk", "ch2_psk", "ch3_psk"};
+    g.nchan = 0;
+    for (int i = 0; i < MESH_MAX_CHAN; i++) {
+        char nm[24];
+        settings_get_str(st, NK[i], nm, sizeof nm);
+        if (i > 0 && !nm[0]) continue;          /* secondary slot disabled */
+        mesh_chan_t *c = &g.chans[g.nchan];
+        snprintf(c->name, sizeof c->name, "%s", nm);
+        char b64[48];
+        settings_get_str(st, PK[i], b64, sizeof b64);
+        int n = mesh_parse_psk_b64(b64, c->psk);
+        c->psk_len = (n < 0) ? 1 : (size_t)n;
+        if (n < 0) c->psk[0] = 0x01;            /* fall back to the default key */
+        g.nchan++;
+    }
+    if (g.nchan == 0) {                          /* never run without a primary */
+        snprintf(g.chans[0].name, sizeof g.chans[0].name, "%s", "LongFast");
+        g.chans[0].psk[0] = 0x01; g.chans[0].psk_len = 1;
+        g.nchan = 1;
+    }
+    if (g.tx_chan >= g.nchan) g.tx_chan = 0;
 
     g.hop_limit = (int)settings_get_int(st, "mesh_hop");
     g.rebroadcast = settings_get_bool(st, "mesh_relay");
@@ -151,12 +176,12 @@ void mtb_reload(void)
     if (!pr) pr = mesh_preset_find("LongFast");
     if (!rg) rg = mesh_region_find("EU_868");
     g.bw = pr->bw_khz; g.sf = pr->sf; g.cr = pr->cr; g.preamble = pr->preamble;
-    g.freq = mesh_center_freq(g.channel, rg, g.bw);
+    g.freq = mesh_center_freq(g.chans[0].name, rg, g.bw);
 
     /* clamp TX power to region cap */
     if (g.tx_power > rg->power_limit_dbm) g.tx_power = rg->power_limit_dbm;
-    ESP_LOGI(TAG, "config: %s/%s ch '%s' %.3fMHz SF%d hop%d relay=%d",
-             g.region, g.preset, g.channel, g.freq, g.sf, g.hop_limit, g.rebroadcast);
+    ESP_LOGI(TAG, "config: %s/%s ch '%s' (%d total) %.3fMHz SF%d hop%d relay=%d",
+             g.region, g.preset, g.chans[0].name, g.nchan, g.freq, g.sf, g.hop_limit, g.rebroadcast);
 }
 
 void mtb_init(settings_t *st, eventbus_t *bus, uint32_t my_node)
@@ -197,7 +222,8 @@ static bool send_data(int portnum, const uint8_t *payload, int payload_len,
     uint32_t pid = esp_random();
     if (!pid) pid = 1;
     int flen = mesh_build_packet(frame, sizeof frame, to_id, g.my_node, pid,
-                                 g.channel, g.psk, (size_t)g.psk_len, data, (size_t)dlen,
+                                 g.chans[g.tx_chan].name, g.chans[g.tx_chan].psk,
+                                 g.chans[g.tx_chan].psk_len, data, (size_t)dlen,
                                  g.hop_limit, g.hop_limit, want_ack);
     if (flen < 0 || !g.tx) return false;
     bool ok = g.tx(frame, flen);
@@ -231,6 +257,7 @@ bool mtb_send_text_to(uint32_t to_id, const char *text)
     if (ok && g.bus) {
         net_message_t m = {0};
         m.kind = MSG_TEXT; m.from_id = g.my_node; m.to_id = to_id; m.id = pid; m.outgoing = true;
+        m.channel = (uint8_t)g.tx_chan;
         m.status = unicast ? MSG_STATUS_PENDING : MSG_STATUS_NONE;
         memcpy(m.text, text, (size_t)n); m.text[n] = 0;
         eventbus_publish(g.bus, EV_MESSAGE_SENT, &m);
@@ -301,9 +328,9 @@ void mtb_on_frame(const uint8_t *frame, int len, float rssi, float snr, uint32_t
     mesh_header_t hdr;
     uint8_t plain[256];
     size_t pl = 0;
-    if (mesh_parse_packet(frame, (size_t)len, g.channel, g.psk, (size_t)g.psk_len,
-                          &hdr, plain, sizeof plain, &pl) != 0)
-        return;
+    int chan = mesh_channels_decode(g.chans, g.nchan, frame, (size_t)len,
+                                    &hdr, plain, sizeof plain, &pl);
+    if (chan < 0) return;
     if (!dedup_check_and_add(&g.dd, hdr.from, hdr.id, now)) return;
     if (hdr.from == g.my_node) return;   /* our own echo */
 
@@ -334,7 +361,7 @@ void mtb_on_frame(const uint8_t *frame, int len, float rssi, float snr, uint32_t
     if (s_rx_observer) s_rx_observer(hdr.from, hdr.to, hdr.id, plain, (int)pl, rssi, snr);
 
     net_message_t m = {0};
-    m.from_id = hdr.from; m.to_id = hdr.to; m.id = hdr.id;
+    m.from_id = hdr.from; m.to_id = hdr.to; m.id = hdr.id; m.channel = (uint8_t)chan;
     m.snr = snr; m.rssi = (int)rssi; m.when = now;
     net_node_label(hdr.from, node->long_name, node->short_name, m.long_name, sizeof m.long_name);
     snprintf(m.short_name, sizeof m.short_name, "%s", node->short_name);
@@ -420,7 +447,11 @@ void mtb_tick(uint32_t now)
 }
 
 uint32_t mtb_my_node(void) { return g.my_node; }
-const char *mtb_channel(void) { return g.channel; }
+const char *mtb_channel(void) { return g.chans[g.tx_chan].name; }
+int mtb_chan_count(void) { return g.nchan; }
+int mtb_chan_active(void) { return g.tx_chan; }
+void mtb_chan_set_active(int idx) { if (idx >= 0 && idx < g.nchan) g.tx_chan = idx; }
+const char *mtb_chan_name(int idx) { return (idx >= 0 && idx < g.nchan) ? g.chans[idx].name : ""; }
 int mtb_peers(void) { return g.db.count; }
 nodedb_t *mtb_nodedb(void) { return &g.db; }
 
@@ -429,7 +460,7 @@ void mtb_diag(net_diag_t *out)
     out->node = g.my_node;
     snprintf(out->region, sizeof out->region, "%s", g.region);
     snprintf(out->preset, sizeof out->preset, "%s", g.preset);
-    snprintf(out->channel, sizeof out->channel, "%s", g.channel);
+    snprintf(out->channel, sizeof out->channel, "%s", g.chans[g.tx_chan].name);
     out->freq_mhz = g.freq;
     out->sf = g.sf;
     out->sync_word = MESH_SYNC_WORD;

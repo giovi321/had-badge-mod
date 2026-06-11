@@ -16,6 +16,7 @@ set(PORTABLE
     ${ROOT}/components/mesh/regions.c
     ${ROOT}/components/mesh/mesh_crypto.c
     ${ROOT}/components/mesh/packet.c
+    ${ROOT}/components/mesh/channels.c
     ${ROOT}/components/mesh/meshtastic_pb.c
     ${ROOT}/components/mesh/nanopb/pb_common.c
     ${ROOT}/components/mesh/nanopb/pb_encode.c

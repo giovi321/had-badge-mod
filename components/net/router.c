@@ -21,6 +21,10 @@ bool net_send_meshpacket(uint32_t to, bool want_ack, const uint8_t *data, int da
 
 uint32_t net_my_node(void) { return mtb_my_node(); }
 const char *net_channel_name(void) { return mtb_channel(); }
+int net_chan_count(void) { return mtb_chan_count(); }
+int net_chan_active(void) { return mtb_chan_active(); }
+void net_chan_set_active(int idx) { mtb_chan_set_active(idx); }
+const char *net_chan_name(int idx) { return mtb_chan_name(idx); }
 int net_peer_count(void) { return mtb_peers(); }
 nodedb_t *net_nodedb(void) { return mtb_nodedb(); }
 

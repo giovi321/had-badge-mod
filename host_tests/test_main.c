@@ -14,6 +14,7 @@ SUITE_DECL(run_aes);
 SUITE_DECL(run_mesh_crypto);
 SUITE_DECL(run_regions);
 SUITE_DECL(run_packet);
+SUITE_DECL(run_channels);
 SUITE_DECL(run_meshtastic_pb);
 SUITE_DECL(run_dedup);
 SUITE_DECL(run_ack_queue);
@@ -34,6 +35,7 @@ int main(void)
     RUN(run_mesh_crypto);
     RUN(run_regions);
     RUN(run_packet);
+    RUN(run_channels);
     RUN(run_meshtastic_pb);
     RUN(run_dedup);
     RUN(run_ack_queue);
