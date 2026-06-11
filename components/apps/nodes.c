@@ -14,6 +14,10 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <math.h>
+#include "core/nodedb.h"
+
+#define FPI 3.14159265358979323846
 
 static const char *cardinal(double brg)
 {
@@ -24,6 +28,9 @@ static const char *cardinal(double brg)
 static lv_obj_t *s_list;
 static lv_group_t *s_group;
 static int s_rendered = -1;
+/* Persistent point storage for the per-row bearing needles (lv_line keeps the
+ * pointer, it does not copy). Re-rendered rows reuse the same slots. */
+static lv_point_precise_t s_arrow_pts[NODEDB_CAP][2];
 
 static uint32_t focused_num(void)
 {
@@ -77,24 +84,32 @@ static void render(void)
     }
     for (int i = 0; i < db->count; i++) {
         node_record_t *r = &db->nodes[i];
-        char label[64], line1[110], line2[80], bat[12] = "";
+        char label[64], line1[110], line2[96], bat[12] = "";
         net_node_label(r->num, r->long_name, r->short_name, label, sizeof label);
         long age = now ? (long)(now - r->last_heard) : 0;
         if (r->has_telemetry && r->battery) snprintf(bat, sizeof bat, "   %d%%", r->battery);
         snprintf(line1, sizeof line1, "%s   SNR %.0f   %lds%s", label, (double)r->snr, age, bat);
 
-        /* Second line: the node's reported coordinates (shown whenever it has a
-         * position, even with no GPS fix here), plus distance + heading when we
-         * do have our own fix. */
+        /* Position line: reported coordinates (shown whenever the node has a
+         * position), plus distance and bearing from here when we have our own
+         * fix. The needle (right) points the same bearing graphically. */
         line2[0] = 0;
+        bool show_arrow = false;
+        double rel = 0;
         if (r->has_position) {
             double nlat = r->lat_i / 1e7, nlon = r->lon_i / 1e7;
-            char nav[32] = "";
+            char nav[44] = "";
             if (havegps) {
                 double dist = geo_distance_m(fix.lat, fix.lon, nlat, nlon);
-                const char *card = cardinal(geo_bearing_deg(fix.lat, fix.lon, nlat, nlon));
-                if (dist >= 1000.0) snprintf(nav, sizeof nav, "   %.1fkm %s", dist / 1000.0, card);
-                else snprintf(nav, sizeof nav, "   %.0fm %s", dist, card);
+                double brg = geo_bearing_deg(fix.lat, fix.lon, nlat, nlon);
+                char ds[16];
+                if (dist >= 1000.0) snprintf(ds, sizeof ds, "%.1fkm", dist / 1000.0);
+                else snprintf(ds, sizeof ds, "%.0fm", dist);
+                snprintf(nav, sizeof nav, "   %s  %.0f %s", ds, brg, cardinal(brg));
+                /* relative to travel while moving (a heading to steer), else north-up */
+                bool moving = fix.has_course && fix.speed > 1.0;
+                rel = fmod((moving ? brg - fix.course : brg) + 360.0, 360.0);
+                show_arrow = true;
             }
             snprintf(line2, sizeof line2, LV_SYMBOL_GPS " %.5f, %.5f%s", nlat, nlon, nav);
         }
@@ -107,20 +122,51 @@ static void render(void)
         lv_obj_set_user_data(btn, (void *)(uintptr_t)r->num);
         lv_obj_add_event_cb(btn, node_key, LV_EVENT_KEY, NULL);
         lv_obj_add_event_cb(btn, node_click, LV_EVENT_CLICKED, NULL);
-        lv_obj_set_flex_flow(btn, LV_FLEX_FLOW_COLUMN);
-        lv_obj_set_style_pad_row(btn, 1, 0);
+        lv_obj_set_flex_flow(btn, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(btn, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-        lv_obj_t *l = lv_label_create(btn);
+        lv_obj_t *col = lv_obj_create(btn);                 /* text column */
+        lv_obj_set_flex_grow(col, 1);
+        lv_obj_set_height(col, LV_SIZE_CONTENT);
+        lv_obj_set_style_bg_opa(col, LV_OPA_TRANSP, 0);
+        lv_obj_set_style_border_width(col, 0, 0);
+        lv_obj_set_style_pad_all(col, 0, 0);
+        lv_obj_set_style_pad_row(col, 1, 0);
+        lv_obj_set_flex_flow(col, LV_FLEX_FLOW_COLUMN);
+        lv_obj_remove_flag(col, LV_OBJ_FLAG_SCROLLABLE);
+
+        lv_obj_t *l = lv_label_create(col);
         lv_label_set_long_mode(l, LV_LABEL_LONG_DOT);
         lv_obj_set_width(l, LV_PCT(100));
         lv_label_set_text(l, line1);
         if (line2[0]) {
-            lv_obj_t *l2 = lv_label_create(btn);
+            lv_obj_t *l2 = lv_label_create(col);
             lv_label_set_long_mode(l2, LV_LABEL_LONG_DOT);
             lv_obj_set_width(l2, LV_PCT(100));
             lv_obj_set_style_text_color(l2, theme_hex(C_TEXT_DIM), 0);
             lv_label_set_text(l2, line2);
         }
+
+        if (show_arrow && i < NODEDB_CAP) {                 /* bearing needle */
+            double th = rel * FPI / 180.0;
+            s_arrow_pts[i][0].x = 13;            s_arrow_pts[i][0].y = 13;
+            s_arrow_pts[i][1].x = 13.0 + 11.0 * sin(th);
+            s_arrow_pts[i][1].y = 13.0 - 11.0 * cos(th);
+            lv_obj_t *box = lv_obj_create(btn);
+            lv_obj_set_size(box, 26, 26);
+            lv_obj_set_style_bg_color(box, theme_hex(C_SURFACE_2), 0);
+            lv_obj_set_style_bg_opa(box, LV_OPA_COVER, 0);
+            lv_obj_set_style_border_width(box, 0, 0);
+            lv_obj_set_style_pad_all(box, 0, 0);
+            lv_obj_set_style_radius(box, LV_RADIUS_CIRCLE, 0);
+            lv_obj_remove_flag(box, LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_t *needle = lv_line_create(box);
+            lv_line_set_points(needle, s_arrow_pts[i], 2);
+            lv_obj_set_style_line_width(needle, 3, 0);
+            lv_obj_set_style_line_color(needle, theme_hex(C_ACCENT), 0);
+            lv_obj_set_style_line_rounded(needle, true, 0);
+        }
+
         if (s_group) lv_group_add_obj(s_group, btn);
     }
     if (keep) {
