@@ -4,4 +4,4 @@ idf_component_register(
          "tracker.c"
     INCLUDE_DIRS "include"
     REQUIRES "ui" "core" "net" "mesh" "services" "drivers" "util" "lvgl" "bsp" "ble"
-             "esp_timer" "nvs_flash")
+             "esp_timer" "nvs_flash" "esp_app_format")
