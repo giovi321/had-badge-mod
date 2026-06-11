@@ -71,8 +71,6 @@ bool net_send_text_to(uint32_t to_id, const char *text);    /* unicast (want_ack
 bool net_send_position(double lat, double lon, int32_t alt, uint32_t ts);
 bool net_send_nodeinfo(void);
 bool net_send_telemetry(int battery_pct, float voltage, uint32_t uptime_s);
-/* Badge-to-badge read receipt: tell `to` that their message `ref_id` was read. */
-bool net_send_read_receipt(uint32_t to, uint32_t ref_id);
 
 uint32_t net_my_node(void);
 const char *net_channel_name(void);
@@ -87,9 +85,5 @@ nodedb_t *net_nodedb(void);
 
 /* RX entry point (radio task). now = unix seconds. */
 void net_on_frame(const uint8_t *frame, int len, float rssi, float snr, uint32_t now);
-
-/* Periodic housekeeping (retransmit unacked unicasts, expire the retry queue).
- * now = a monotonic seconds clock (uptime); call every few seconds. */
-void net_tick(uint32_t now);
 
 #endif /* NET_BACKEND_H */

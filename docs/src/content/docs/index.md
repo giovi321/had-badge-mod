@@ -24,9 +24,9 @@ The badge joins a Meshtastic mesh and exchanges text messages with other badges,
 devices, and the Meshtastic phone app over LoRa. The on-air format follows the real
 Meshtastic wire protocol, so packets interoperate with stock devices.
 
-Messages can run on several channels at once and track delivery with retries and optional read
-receipts. A radar view plots nearby nodes by range and bearing, and when WiFi is on a web UI
-configures the badge, backs up its settings, and flashes firmware over the air.
+Messages can run on several channels at once. A radar view plots nearby nodes by range and
+bearing, and when WiFi is on a web UI configures the badge, backs up its settings, and flashes
+firmware over the air.
 
 The interface uses one font, a single amber accent on a dark background, and monochrome
 icons. A status sidebar runs down the left edge, a function-key bar spans the bottom, and

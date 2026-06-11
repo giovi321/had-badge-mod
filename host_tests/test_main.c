@@ -17,7 +17,6 @@ SUITE_DECL(run_packet);
 SUITE_DECL(run_channels);
 SUITE_DECL(run_meshtastic_pb);
 SUITE_DECL(run_dedup);
-SUITE_DECL(run_ack_queue);
 SUITE_DECL(run_eventbus);
 SUITE_DECL(run_settings);
 SUITE_DECL(run_settings_json);
@@ -38,7 +37,6 @@ int main(void)
     RUN(run_channels);
     RUN(run_meshtastic_pb);
     RUN(run_dedup);
-    RUN(run_ack_queue);
     RUN(run_eventbus);
     RUN(run_settings);
     RUN(run_settings_json);

@@ -34,9 +34,6 @@ static bool s_dirty;            /* history changed since last NVS save */
 static int s_save_throttle;     /* bg-tick counter to debounce NVS writes */
 static uint32_t s_target = 0xFFFFFFFFu;   /* recipient (broadcast by default) */
 static int s_view_chan = 0;               /* channel shown in the chat (= TX channel) */
-static QueueHandle_t s_ack_q;             /* request_ids of delivered messages */
-static QueueHandle_t s_fail_q;            /* packet ids of failed (unacked) messages */
-static QueueHandle_t s_read_q;            /* packet ids reported read by the recipient */
 static lv_obj_t *s_to;                    /* "To: ..." label */
 
 void messages_set_target(uint32_t node) { s_target = node; }
@@ -64,8 +61,6 @@ typedef struct {                    /* CMG2 (current): adds the channel index */
 static const setting_t MSG_SCHEMA[] = {
     {.key = "msg_keep", .type = SET_INT, .def = "50", .label = "Saved messages",
      .group = "Messages", .minv = 0, .maxv = MSG_HISTORY_MAX, .has_min = true, .has_max = true},
-    {.key = "msg_read_rcpt", .type = SET_BOOL, .def = "false", .label = "Send read receipts",
-     .group = "Messages", .help = "Tell other badges when you read their direct message"},
 };
 #define MSG_SCHEMA_N ((int)(sizeof MSG_SCHEMA / sizeof MSG_SCHEMA[0]))
 
@@ -90,27 +85,6 @@ static void on_event(eb_event_t ev, const void *payload, void *ctx)
     if (ev != EV_MESSAGE_RECEIVED && ev != EV_MESSAGE_SENT) return;
     if (m->kind != MSG_TEXT) return;
     if (s_pending) xQueueSend(s_pending, m, 0);
-}
-
-static void on_ack(eb_event_t ev, const void *payload, void *ctx)
-{
-    (void)ev; (void)ctx;
-    uint32_t rid = *(const uint32_t *)payload;
-    if (s_ack_q) xQueueSend(s_ack_q, &rid, 0);
-}
-
-static void on_fail(eb_event_t ev, const void *payload, void *ctx)
-{
-    (void)ev; (void)ctx;
-    uint32_t id = *(const uint32_t *)payload;
-    if (s_fail_q) xQueueSend(s_fail_q, &id, 0);
-}
-
-static void on_read(eb_event_t ev, const void *payload, void *ctx)
-{
-    (void)ev; (void)ctx;
-    uint32_t id = *(const uint32_t *)payload;
-    if (s_read_q) xQueueSend(s_read_q, &id, 0);
 }
 
 /* --- persistence (NVS "msgs"/"hist") ------------------------------------ */
@@ -211,11 +185,6 @@ static void msg_bg_tick(lv_timer_t *t)
         hist_push(&m);
         if (s_active && m.channel == (uint8_t)s_view_chan) {
             add_bubble(&m);
-            /* Reading a direct message while the chat is open: optionally tell the
-             * sender it was read (opt-in; broadcasts never get a receipt). */
-            if (!m.outgoing && m.to_id == net_my_node() &&
-                s_settings && settings_get_bool(s_settings, "msg_read_rcpt"))
-                net_send_read_receipt(m.from_id, m.id);
         } else if (!m.outgoing) {
             got_rx = true;
             const char *who = m.long_name[0] ? m.long_name : (m.short_name[0] ? m.short_name : "node");
@@ -225,44 +194,7 @@ static void msg_bg_tick(lv_timer_t *t)
         changed = true;
     }
 
-    /* Delivery acks / failures: update the matching sent message's status and
-     * repaint so its mark changes (check on delivery, warning on failure). */
-    uint32_t rid;
-    bool acked = false;
-    while (s_ack_q && xQueueReceive(s_ack_q, &rid, 0) == pdTRUE) {
-        for (int i = s_hist_n - 1; i >= 0; i--) {
-            if (s_hist[i].outgoing && s_hist[i].id == rid &&
-                s_hist[i].status == MSG_STATUS_PENDING) {
-                s_hist[i].status = MSG_STATUS_DELIVERED;
-                acked = true;
-                break;
-            }
-        }
-    }
-    while (s_fail_q && xQueueReceive(s_fail_q, &rid, 0) == pdTRUE) {
-        for (int i = s_hist_n - 1; i >= 0; i--) {
-            if (s_hist[i].outgoing && s_hist[i].id == rid &&
-                s_hist[i].status == MSG_STATUS_PENDING) {
-                s_hist[i].status = MSG_STATUS_FAILED;
-                acked = true;
-                break;
-            }
-        }
-    }
-
-    while (s_read_q && xQueueReceive(s_read_q, &rid, 0) == pdTRUE) {
-        for (int i = s_hist_n - 1; i >= 0; i--) {
-            if (s_hist[i].outgoing && s_hist[i].id == rid &&
-                (s_hist[i].status == MSG_STATUS_PENDING || s_hist[i].status == MSG_STATUS_DELIVERED)) {
-                s_hist[i].status = MSG_STATUS_READ;
-                acked = true;
-                break;
-            }
-        }
-    }
-
     if (changed && s_active) lv_obj_scroll_to_y(s_list, LV_COORD_MAX, LV_ANIM_ON);
-    if (acked && s_active) render_history();
     if (got_rx && !s_active) show_toast(toast);
     if (s_dirty && ++s_save_throttle >= 12) {   /* ~ every 5 s */
         msg_save();
@@ -276,14 +208,8 @@ void messages_init(eventbus_t *bus, settings_t *settings)
     s_settings = settings;
     if (settings) settings_register_many(settings, MSG_SCHEMA, MSG_SCHEMA_N);
     s_pending = xQueueCreate(12, sizeof(net_message_t));
-    s_ack_q = xQueueCreate(8, sizeof(uint32_t));
-    s_fail_q = xQueueCreate(8, sizeof(uint32_t));
-    s_read_q = xQueueCreate(8, sizeof(uint32_t));
     eventbus_subscribe(bus, EV_MESSAGE_RECEIVED, on_event, NULL);
     eventbus_subscribe(bus, EV_MESSAGE_SENT, on_event, NULL);
-    eventbus_subscribe(bus, EV_MESSAGE_ACK, on_ack, NULL);
-    eventbus_subscribe(bus, EV_MESSAGE_FAILED, on_fail, NULL);
-    eventbus_subscribe(bus, EV_MESSAGE_READ, on_read, NULL);
     msg_load();
     lv_timer_create(msg_bg_tick, 400, NULL);
 }
@@ -307,20 +233,7 @@ static void add_bubble(const net_message_t *m)
     lv_label_set_long_mode(bubble, LV_LABEL_LONG_WRAP);
 
     if (m->outgoing) {
-        const char *mark = "";
-        switch (m->status) {
-        case MSG_STATUS_DELIVERED: mark = "  " LV_SYMBOL_OK; break;
-        case MSG_STATUS_READ:      mark = "  " LV_SYMBOL_OK LV_SYMBOL_OK; break;
-        case MSG_STATUS_FAILED:    mark = "  " LV_SYMBOL_WARNING; break;
-        default: break;   /* PENDING / NONE: no mark */
-        }
-        if (mark[0]) {
-            char buf[300];
-            snprintf(buf, sizeof buf, "%s%s", m->text, mark);
-            lv_label_set_text(bubble, buf);
-        } else {
-            lv_label_set_text(bubble, m->text);
-        }
+        lv_label_set_text(bubble, m->text);
     } else {
         char buf[300];
         const char *who = m->long_name[0] ? m->long_name : m->short_name;

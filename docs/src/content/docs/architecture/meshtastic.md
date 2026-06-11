@@ -61,10 +61,3 @@ Messages app records it whether or not that app is open.
 On transmit the radio task does listen-before-talk with channel activity detection. It waits
 on DIO1 for the CAD result rather than polling, backs off a bounded number of times, and
 then sends. This avoids the tight spin that once starved the MicroPython event loop.
-
-## Delivery and retries
-
-A direct message is sent with the want-ack flag and tracked in a small retry queue: if no
-routing acknowledgement returns within a timeout, the frame is retransmitted a few times and
-then marked failed. The queue is portable and host-tested. Read receipts are a separate,
-badge-only control message on a private port number that standard Meshtastic nodes ignore.

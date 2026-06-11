@@ -72,7 +72,6 @@ Active development happens on the `dev` branch. Planned feature batch, in priori
 
 - [ ] "Find my people" radar / PPI scope — plot nodes by range and bearing (code complete on `dev`, on-device check pending)
 - [ ] Web tools: config backup/restore and OTA firmware update over the web UI (code complete on `dev`, on-device check pending)
-- [ ] Delivery and read receipts with a retry queue and ACK tracking (code complete on `dev`, on-device check pending)
 - [ ] Multi-channel threaded UI and a "mesh IRC" group chat with nicks (code complete on `dev`, on-device check pending)
 - [ ] Haptics: piezo buzzer and vibration motor for notifications
 - [ ] IMU and magnetometer driver — a real compass (also upgrades Radar/Tracker/Follow heading)

@@ -55,19 +55,6 @@ Incoming messages are added to the history as they arrive, even when the app is 
 short popup shows the newest one on top of whatever screen you are on. Use the Up and Down
 arrows to scroll the history; the input stays focused so you can keep typing.
 
-## Delivery, failure, and read receipts
-
-A direct (private) message asks for a delivery acknowledgement and is tracked until it arrives:
-
-- A check mark on the sent bubble means it was delivered.
-- If no acknowledgement comes back, the badge retransmits a few times, then marks the bubble
-  with a warning to show it gave up.
-- A second check appears if the other badge reports that it was read.
-
-Read receipts are off by default and badge-to-badge only. Turn on `msg_read_rcpt` in the
-Messages settings group to tell other badges when you read their direct message; standard
-Meshtastic nodes ignore it. Broadcasts are never acknowledged.
-
 ## History across boots
 
 The chat history is saved to NVS and reloaded on boot. The number of messages kept is set by

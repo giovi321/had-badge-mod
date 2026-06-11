@@ -13,9 +13,6 @@ typedef enum {
     EV_POSITION_UPDATE,   /* const position_t*  */
     EV_MESSAGE_RECEIVED,  /* const net_message_t* */
     EV_MESSAGE_SENT,      /* const net_message_t* */
-    EV_MESSAGE_ACK,       /* const uint32_t* request_id (delivery ack) */
-    EV_MESSAGE_FAILED,    /* const uint32_t* packet id (no ack after retries) */
-    EV_MESSAGE_READ,      /* const uint32_t* packet id (recipient read receipt) */
     EV_MESH_NODE_UPDATE,  /* const node_record_t* */
     EV_WIFI_STATE,        /* const wifi_state_t* */
     EV_BATTERY,           /* const battery_state_msg_t* */
