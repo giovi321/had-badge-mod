@@ -18,6 +18,7 @@ SUITE_DECL(run_meshtastic_pb);
 SUITE_DECL(run_dedup);
 SUITE_DECL(run_eventbus);
 SUITE_DECL(run_settings);
+SUITE_DECL(run_settings_json);
 SUITE_DECL(run_nodedb);
 SUITE_DECL(run_nmea);
 SUITE_DECL(run_geo);
@@ -36,6 +37,7 @@ int main(void)
     RUN(run_dedup);
     RUN(run_eventbus);
     RUN(run_settings);
+    RUN(run_settings_json);
     RUN(run_nodedb);
     RUN(run_nmea);
     RUN(run_geo);

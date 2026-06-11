@@ -23,6 +23,7 @@ set(PORTABLE
     ${ROOT}/components/mesh/generated/meshtastic.pb.c
     ${ROOT}/components/core/eventbus.c
     ${ROOT}/components/core/settings.c
+    ${ROOT}/components/core/settings_json.c
     ${ROOT}/components/core/nodedb.c
     ${ROOT}/components/net/portable/dedup.c
     ${ROOT}/components/ui/portable/theme_map.c

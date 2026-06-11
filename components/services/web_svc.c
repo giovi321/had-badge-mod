@@ -1,6 +1,7 @@
 /* See services/web.h. A small esp_http_server serving a schema-driven settings
  * form and a diagnostics page. */
 #include "services/web.h"
+#include "core/settings_json.h"
 #include "net/backend.h"
 #include "net/message.h"
 
@@ -64,7 +65,9 @@ static esp_err_t root_get(httpd_req_t *r)
 {
     httpd_resp_set_type(r, "text/html");
     chunk(r, PAGE_HEAD);
-    chunk(r, "<h1>Communicator settings</h1><p><a href='/diag'>diagnostics</a></p>"
+    chunk(r, "<h1>Communicator settings</h1>"
+             "<p><a href='/diag'>diagnostics</a> &middot; "
+             "<a href='/import'>backup / restore</a></p>"
              "<form method='post' action='/save'>");
 
     const char *groups[24];
@@ -158,12 +161,82 @@ static esp_err_t diag_get(httpd_req_t *r)
     return ESP_OK;
 }
 
+/* GET /export -> downloads the full config as JSON. ?secrets=0 omits secrets. */
+static esp_err_t export_get(httpd_req_t *r)
+{
+    bool secrets = true;
+    char q[48], v[8];
+    if (httpd_req_get_url_query_str(r, q, sizeof q) == ESP_OK &&
+        httpd_query_key_value(q, "secrets", v, sizeof v) == ESP_OK && strcmp(v, "0") == 0)
+        secrets = false;
+
+    int cap = 12 * 1024;
+    char *buf = malloc(cap);
+    if (!buf) return ESP_ERR_NO_MEM;
+    int n = settings_export_json(s_reg, secrets, buf, cap);
+    if (n < 0) { free(buf); httpd_resp_send_err(r, HTTPD_500_INTERNAL_SERVER_ERROR, "config too large"); return ESP_FAIL; }
+
+    httpd_resp_set_type(r, "application/json");
+    httpd_resp_set_hdr(r, "Content-Disposition", "attachment; filename=\"badge-config.json\"");
+    httpd_resp_send(r, buf, n);
+    free(buf);
+    return ESP_OK;
+}
+
+/* GET /import -> a page to download a backup or paste one to restore. */
+static esp_err_t import_get(httpd_req_t *r)
+{
+    httpd_resp_set_type(r, "text/html");
+    chunk(r, PAGE_HEAD);
+    chunk(r, "<h1>Backup / restore</h1>"
+             "<p><a href='/export'>Download backup</a> (includes channel key and WiFi password) "
+             "&middot; <a href='/export?secrets=0'>without secrets</a></p>"
+             "<form method='post' action='/import'>"
+             "<label>Paste a badge-config.json to restore</label>"
+             "<textarea name='cfg' rows='10' style='width:100%'></textarea>"
+             "<button type=submit>Restore</button></form>"
+             "<p><a href='/'>back to settings</a></p></body></html>");
+    httpd_resp_send_chunk(r, NULL, 0);
+    return ESP_OK;
+}
+
+/* POST /import -> applies a pasted backup (form field cfg=<json>). */
+static esp_err_t import_post(httpd_req_t *r)
+{
+    int cap = 16 * 1024;
+    char *body = malloc(cap);
+    if (!body) return ESP_ERR_NO_MEM;
+    int total = 0, got;
+    while (total < cap - 1 && (got = httpd_req_recv(r, body + total, cap - 1 - total)) > 0) total += got;
+    body[total] = 0;
+
+    char *p = body;
+    if (strncmp(p, "cfg=", 4) == 0) p += 4;
+    url_decode(p);
+    settings_import_result_t res = settings_import_json(s_reg, p);
+    free(body);
+    net_reload_config();
+
+    char msg[256];
+    snprintf(msg, sizeof msg,
+             "<h1>Restored</h1><p>%d applied, %d skipped, %d rejected, %d unknown.</p>"
+             "<p>Reboot for radio/WiFi changes to take effect.</p>"
+             "<p><a href='/'>settings</a></p></body></html>",
+             res.applied, res.skipped, res.rejected, res.unknown);
+    httpd_resp_set_type(r, "text/html");
+    chunk(r, PAGE_HEAD);
+    chunk(r, msg);
+    httpd_resp_send_chunk(r, NULL, 0);
+    return ESP_OK;
+}
+
 esp_err_t web_svc_start(settings_t *reg)
 {
     if (s_httpd) return ESP_OK;
     s_reg = reg;
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.lru_purge_enable = true;
+    cfg.max_uri_handlers = 12;
     cfg.stack_size = 6144;
     esp_err_t e = httpd_start(&s_httpd, &cfg);
     if (e != ESP_OK) { ESP_LOGE(TAG, "httpd start: %s", esp_err_to_name(e)); return e; }
@@ -171,9 +244,15 @@ esp_err_t web_svc_start(settings_t *reg)
     httpd_uri_t root = { .uri = "/", .method = HTTP_GET, .handler = root_get };
     httpd_uri_t save = { .uri = "/save", .method = HTTP_POST, .handler = save_post };
     httpd_uri_t diag = { .uri = "/diag", .method = HTTP_GET, .handler = diag_get };
+    httpd_uri_t expo = { .uri = "/export", .method = HTTP_GET, .handler = export_get };
+    httpd_uri_t impg = { .uri = "/import", .method = HTTP_GET, .handler = import_get };
+    httpd_uri_t impp = { .uri = "/import", .method = HTTP_POST, .handler = import_post };
     httpd_register_uri_handler(s_httpd, &root);
     httpd_register_uri_handler(s_httpd, &save);
     httpd_register_uri_handler(s_httpd, &diag);
+    httpd_register_uri_handler(s_httpd, &expo);
+    httpd_register_uri_handler(s_httpd, &impg);
+    httpd_register_uri_handler(s_httpd, &impp);
     ESP_LOGI(TAG, "web ui started");
     return ESP_OK;
 }
