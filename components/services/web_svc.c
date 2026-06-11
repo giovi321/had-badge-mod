@@ -1,6 +1,7 @@
 /* See services/web.h. A small esp_http_server serving a schema-driven settings
  * form and a diagnostics page. */
 #include "services/web.h"
+#include "services/ota.h"
 #include "core/settings_json.h"
 #include "net/backend.h"
 #include "net/message.h"
@@ -67,7 +68,8 @@ static esp_err_t root_get(httpd_req_t *r)
     chunk(r, PAGE_HEAD);
     chunk(r, "<h1>Communicator settings</h1>"
              "<p><a href='/diag'>diagnostics</a> &middot; "
-             "<a href='/import'>backup / restore</a></p>"
+             "<a href='/import'>backup / restore</a> &middot; "
+             "<a href='/update'>firmware update</a></p>"
              "<form method='post' action='/save'>");
 
     const char *groups[24];
@@ -230,6 +232,60 @@ static esp_err_t import_post(httpd_req_t *r)
     return ESP_OK;
 }
 
+/* GET /update -> a file picker that POSTs the raw .bin as the request body. */
+static esp_err_t update_get(httpd_req_t *r)
+{
+    httpd_resp_set_type(r, "text/html");
+    chunk(r, PAGE_HEAD);
+    chunk(r, "<h1>Firmware update</h1>"
+             "<p>Pick a had-badge-mod <code>.bin</code> built for this board. The badge "
+             "reboots into the new image; a bad image rolls back on the next reset.</p>"
+             "<input type=file id=f accept='.bin'>"
+             "<button onclick='up()'>Flash</button><p id=s></p>"
+             "<script>function up(){var f=document.getElementById('f').files[0];if(!f)return;"
+             "var s=document.getElementById('s');s.textContent='Uploading '+f.size+' bytes...';"
+             "fetch('/update',{method:'POST',body:f}).then(function(r){return r.text()})"
+             ".then(function(t){s.textContent=t}).catch(function(e){s.textContent='Error: '+e});}"
+             "</script><p><a href='/'>back</a></p></body></html>");
+    httpd_resp_send_chunk(r, NULL, 0);
+    return ESP_OK;
+}
+
+/* POST /update -> streams the request body straight into the inactive OTA slot. */
+static esp_err_t update_post(httpd_req_t *r)
+{
+    int total = r->content_len;
+    if (ota_begin((size_t)(total > 0 ? total : 0)) != ESP_OK) {
+        httpd_resp_send_err(r, HTTPD_500_INTERNAL_SERVER_ERROR, "ota begin failed");
+        return ESP_FAIL;
+    }
+
+    char *buf = malloc(4096);
+    if (!buf) { ota_abort(); return ESP_ERR_NO_MEM; }
+    int remaining = total, got;
+    bool ok = true;
+    while (remaining > 0) {
+        got = httpd_req_recv(r, buf, remaining < 4096 ? remaining : 4096);
+        if (got == HTTPD_SOCK_ERR_TIMEOUT) continue;
+        if (got <= 0 || ota_write(buf, (size_t)got) != ESP_OK) { ok = false; break; }
+        remaining -= got;
+    }
+    free(buf);
+
+    if (!ok || remaining > 0) {
+        ota_abort();
+        httpd_resp_send_err(r, HTTPD_500_INTERNAL_SERVER_ERROR, "upload failed");
+        return ESP_FAIL;
+    }
+    if (ota_end() != ESP_OK) {
+        httpd_resp_send_err(r, HTTPD_500_INTERNAL_SERVER_ERROR, "image rejected");
+        return ESP_FAIL;
+    }
+    httpd_resp_sendstr(r, "Update OK. Rebooting into the new firmware...");
+    ota_reboot_soon();
+    return ESP_OK;
+}
+
 esp_err_t web_svc_start(settings_t *reg)
 {
     if (s_httpd) return ESP_OK;
@@ -247,12 +303,16 @@ esp_err_t web_svc_start(settings_t *reg)
     httpd_uri_t expo = { .uri = "/export", .method = HTTP_GET, .handler = export_get };
     httpd_uri_t impg = { .uri = "/import", .method = HTTP_GET, .handler = import_get };
     httpd_uri_t impp = { .uri = "/import", .method = HTTP_POST, .handler = import_post };
+    httpd_uri_t updg = { .uri = "/update", .method = HTTP_GET, .handler = update_get };
+    httpd_uri_t updp = { .uri = "/update", .method = HTTP_POST, .handler = update_post };
     httpd_register_uri_handler(s_httpd, &root);
     httpd_register_uri_handler(s_httpd, &save);
     httpd_register_uri_handler(s_httpd, &diag);
     httpd_register_uri_handler(s_httpd, &expo);
     httpd_register_uri_handler(s_httpd, &impg);
     httpd_register_uri_handler(s_httpd, &impp);
+    httpd_register_uri_handler(s_httpd, &updg);
+    httpd_register_uri_handler(s_httpd, &updp);
     ESP_LOGI(TAG, "web ui started");
     return ESP_OK;
 }

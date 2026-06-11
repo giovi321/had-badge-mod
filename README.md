@@ -71,7 +71,7 @@ docs/                          Astro + Starlight documentation site
 Active development happens on the `dev` branch. Planned feature batch, in priority order:
 
 - [ ] "Find my people" radar / PPI scope — plot nodes by range and bearing (code complete on `dev`, on-device check pending)
-- [ ] Web tools: config backup/restore and OTA firmware update over the web UI
+- [ ] Web tools: config backup/restore and OTA firmware update over the web UI (code complete on `dev`, on-device check pending)
 - [ ] Delivery and read receipts with a retry queue and ACK tracking
 - [ ] Multi-channel threaded UI and a "mesh IRC" group chat with nicks
 - [ ] Haptics: piezo buzzer and vibration motor for notifications

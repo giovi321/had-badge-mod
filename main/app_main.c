@@ -29,6 +29,7 @@
 
 #include "services/services.h"
 #include "services/track.h"
+#include "services/ota.h"
 #include "ble/ble.h"
 #include "apps/app_manager.h"
 #include "apps/app_iface.h"
@@ -105,5 +106,9 @@ void app_main(void)
 
     /* 8. Start the UI task (drives LVGL from here on). */
     app_manager_start();
+
+    /* Reaching here means the image booted cleanly: confirm it so the bootloader
+     * keeps it (a no-op unless we just OTA'd and are pending verification). */
+    ota_mark_valid();
     ESP_LOGI(TAG, "boot complete");
 }
