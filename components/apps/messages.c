@@ -380,10 +380,16 @@ static void update_to(void)
 static void cycle_channel(void)
 {
     int n = net_chan_count();
-    if (n <= 1) return;
+    if (n <= 1) {
+        show_toast("Only one channel. Add more in Settings > Channels.");
+        return;
+    }
     s_view_chan = (s_view_chan + 1) % n;
     net_chan_set_active(s_view_chan);   /* the viewed channel is also the send channel */
     update_to();
+    char t[48];
+    snprintf(t, sizeof t, "Channel: %s", net_chan_name(s_view_chan));
+    show_toast(t);
     render_history();
 }
 
