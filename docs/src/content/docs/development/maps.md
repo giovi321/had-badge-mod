@@ -12,6 +12,22 @@ uses for the blips, so map and people stay aligned.
 There is no live download on the badge — everything is offline. A regional extract (a city
 centre a few kilometres across) is plenty for radar ranges, which top out at 5 km.
 
+## Quickstart
+
+Three steps:
+
+1. **Build a map** for your area. Export it as GeoJSON from
+   [Overpass Turbo](https://overpass-turbo.eu) (the query is in step 1 below), then convert it:
+   ```sh
+   python tools/osm2vmap.py --geojson area.geojson --out map.vmap
+   ```
+2. **Upload it.** Open **`http://<badge-ip>/map`** in a browser and pick `map.vmap`.
+3. **Turn it on.** Open **Radar** on the badge, wait for a GPS fix, and press **F4**.
+
+Roads and water now draw behind the radar blips. The one rule: the map has to cover the spot
+where your GPS fix is, or there's nothing to draw. The rest of this page explains each step and
+the tuning flags.
+
 ## 1. Get the data from OpenStreetMap
 
 The simplest source is [Overpass Turbo](https://overpass-turbo.eu). Pan/zoom to your area, paste

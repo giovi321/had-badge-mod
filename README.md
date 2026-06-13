@@ -54,6 +54,21 @@ pwsh tools/run_host_tests.ps1
 A `host_tests/CMakeLists.txt` is also provided for gcc or clang with CMake. See
 [Host tests](https://giovi321.github.io/had-badge-mod/development/host-tests/).
 
+## Offline radar map
+
+The Radar app can draw an offline OpenStreetMap vector map (roads + water) behind the node
+blips. Build a map for your area on a PC, upload it over Wi-Fi, and toggle it with **F4**:
+
+```bash
+# Export your area as GeoJSON from https://overpass-turbo.eu, then:
+python tools/osm2vmap.py --geojson area.geojson --out map.vmap
+```
+
+Open `http://<badge-ip>/map` to upload `map.vmap`, then press **F4** in Radar (with a GPS fix)
+to show it — the map must cover where your fix is. See
+[Offline maps](https://giovi321.github.io/had-badge-mod/development/maps/) for the full
+walkthrough.
+
 ## Layout
 
 ```
