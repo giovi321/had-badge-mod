@@ -3,7 +3,7 @@
 #define APP_CONFIG_H
 
 #define FW_NAME     "Communicator-C"
-#define FW_VERSION  "0.10.0"    /* shown with the git commit on the home screen */
+#define FW_VERSION  "0.11.0"    /* shown with the git commit on the home screen */
 
 /* LoRa / Meshtastic defaults (overridable at runtime via settings/NVS). */
 #define DEFAULT_REGION        "EU_868"

@@ -68,6 +68,7 @@ export default defineConfig({
           items: [
             { label: 'Host tests', link: '/development/host-tests/' },
             { label: 'Conventions', link: '/development/conventions/' },
+            { label: 'Offline maps', link: '/development/maps/' },
             { label: 'Troubleshooting', link: '/development/troubleshooting/' },
           ],
         },

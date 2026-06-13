@@ -77,7 +77,7 @@ Active development happens on the `dev` branch. Planned feature batch, in priori
 - [ ] IMU and magnetometer driver — a real compass (also upgrades Radar/Tracker/Follow heading)
 - [ ] Waypoint/POI manager — save, name, navigate, and share points over the mesh
 - [ ] BLE channel/contact provisioning for zero-typing onboarding
-- [ ] Offline vector map under the radar view
+- [x] Offline vector map under the radar view (code complete on `dev`, on-device check pending)
 
 ## License
 

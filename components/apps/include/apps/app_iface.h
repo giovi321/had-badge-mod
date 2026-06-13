@@ -48,6 +48,10 @@ void messages_set_target(uint32_t node);
 /* Set which node the Tracker app follows. Called by the Nodes app. */
 void tracker_set_target(uint32_t node);
 
+/* Register the radar's settings + load the saved map-overlay state (call once
+ * at boot, before settings_app_init). */
+void radar_init(settings_t *reg);
+
 /* Give the settings app access to the registry (call once at boot). */
 void settings_app_init(settings_t *reg);
 

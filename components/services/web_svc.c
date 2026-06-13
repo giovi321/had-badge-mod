@@ -5,6 +5,7 @@
 #include "core/settings_json.h"
 #include "net/backend.h"
 #include "net/message.h"
+#include "util/vmap.h"
 
 #include <string.h>
 #include <stdio.h>
@@ -69,7 +70,8 @@ static esp_err_t root_get(httpd_req_t *r)
     chunk(r, "<h1>Communicator settings</h1>"
              "<p><a href='/diag'>diagnostics</a> &middot; "
              "<a href='/import'>backup / restore</a> &middot; "
-             "<a href='/update'>firmware update</a></p>"
+             "<a href='/update'>firmware update</a> &middot; "
+             "<a href='/map'>offline map</a></p>"
              "<form method='post' action='/save'>");
 
     const char *groups[24];
@@ -286,13 +288,90 @@ static esp_err_t update_post(httpd_req_t *r)
     return ESP_OK;
 }
 
+#define MAP_TMP "/spiffs/map.tmp"
+
+/* GET /map -> a file picker that POSTs a .vmap to the badge. */
+static esp_err_t map_get(httpd_req_t *r)
+{
+    httpd_resp_set_type(r, "text/html");
+    chunk(r, PAGE_HEAD);
+    chunk(r, "<h1>Offline map</h1>"
+             "<p>Upload a <code>.vmap</code> built with <code>tools/osm2vmap.py</code> "
+             "from OpenStreetMap roads + water for your area. The Radar app draws it "
+             "behind the blips (toggle with F4).</p>"
+             "<input type=file id=f accept='.vmap'>"
+             "<button onclick='up()'>Upload</button><p id=s></p>"
+             "<script>function up(){var f=document.getElementById('f').files[0];if(!f)return;"
+             "var s=document.getElementById('s');s.textContent='Uploading '+f.size+' bytes...';"
+             "fetch('/map',{method:'POST',body:f}).then(function(r){return r.text()})"
+             ".then(function(t){s.textContent=t}).catch(function(e){s.textContent='Error: '+e});}"
+             "</script><p><a href='/'>back</a></p></body></html>");
+    httpd_resp_send_chunk(r, NULL, 0);
+    return ESP_OK;
+}
+
+/* POST /map -> streams the body to a temp file, validates the .vmap header,
+ * then atomically replaces the live map. */
+static esp_err_t map_post(httpd_req_t *r)
+{
+    int total = r->content_len;
+    if (total < VMAP_HEADER_SIZE) {
+        httpd_resp_send_err(r, HTTPD_400_BAD_REQUEST, "file too small");
+        return ESP_FAIL;
+    }
+    FILE *f = fopen(MAP_TMP, "wb");
+    if (!f) {
+        httpd_resp_send_err(r, HTTPD_500_INTERNAL_SERVER_ERROR, "cannot open storage");
+        return ESP_FAIL;
+    }
+    char *buf = malloc(4096);
+    if (!buf) { fclose(f); remove(MAP_TMP); return ESP_ERR_NO_MEM; }
+
+    uint8_t head[VMAP_HEADER_SIZE];
+    int headn = 0, remaining = total, got;
+    bool ok = true;
+    while (remaining > 0) {
+        got = httpd_req_recv(r, buf, remaining < 4096 ? remaining : 4096);
+        if (got == HTTPD_SOCK_ERR_TIMEOUT) continue;
+        if (got <= 0) { ok = false; break; }
+        if (headn < VMAP_HEADER_SIZE) {           /* snapshot the header bytes */
+            int need = VMAP_HEADER_SIZE - headn;
+            int cpy = got < need ? got : need;
+            memcpy(head + headn, buf, (size_t)cpy);
+            headn += cpy;
+        }
+        if (fwrite(buf, 1, (size_t)got, f) != (size_t)got) { ok = false; break; }
+        remaining -= got;
+    }
+    free(buf);
+    fclose(f);
+
+    vmap_header_t h;
+    if (!ok || remaining > 0 || vmap_parse_header(head, headn, &h) < 0) {
+        remove(MAP_TMP);
+        httpd_resp_send_err(r, HTTPD_400_BAD_REQUEST, "not a valid .vmap file");
+        return ESP_FAIL;
+    }
+    remove(VMAP_DEFAULT_PATH);
+    if (rename(MAP_TMP, VMAP_DEFAULT_PATH) != 0) {
+        remove(MAP_TMP);
+        httpd_resp_send_err(r, HTTPD_500_INTERNAL_SERVER_ERROR, "could not store map");
+        return ESP_FAIL;
+    }
+    char msg[96];
+    snprintf(msg, sizeof msg, "Map OK: %u features stored. Toggle it with F4 in Radar.",
+             (unsigned)h.feature_count);
+    httpd_resp_sendstr(r, msg);
+    return ESP_OK;
+}
+
 esp_err_t web_svc_start(settings_t *reg)
 {
     if (s_httpd) return ESP_OK;
     s_reg = reg;
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.lru_purge_enable = true;
-    cfg.max_uri_handlers = 12;
+    cfg.max_uri_handlers = 14;
     cfg.stack_size = 6144;
     esp_err_t e = httpd_start(&s_httpd, &cfg);
     if (e != ESP_OK) { ESP_LOGE(TAG, "httpd start: %s", esp_err_to_name(e)); return e; }
@@ -305,6 +384,8 @@ esp_err_t web_svc_start(settings_t *reg)
     httpd_uri_t impp = { .uri = "/import", .method = HTTP_POST, .handler = import_post };
     httpd_uri_t updg = { .uri = "/update", .method = HTTP_GET, .handler = update_get };
     httpd_uri_t updp = { .uri = "/update", .method = HTTP_POST, .handler = update_post };
+    httpd_uri_t mapg = { .uri = "/map", .method = HTTP_GET, .handler = map_get };
+    httpd_uri_t mapp = { .uri = "/map", .method = HTTP_POST, .handler = map_post };
     httpd_register_uri_handler(s_httpd, &root);
     httpd_register_uri_handler(s_httpd, &save);
     httpd_register_uri_handler(s_httpd, &diag);
@@ -313,6 +394,8 @@ esp_err_t web_svc_start(settings_t *reg)
     httpd_register_uri_handler(s_httpd, &impp);
     httpd_register_uri_handler(s_httpd, &updg);
     httpd_register_uri_handler(s_httpd, &updp);
+    httpd_register_uri_handler(s_httpd, &mapg);
+    httpd_register_uri_handler(s_httpd, &mapp);
     ESP_LOGI(TAG, "web ui started");
     return ESP_OK;
 }
