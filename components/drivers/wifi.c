@@ -93,6 +93,13 @@ esp_err_t wifi_apply(const char *mode, const char *sta_ssid, const char *sta_pas
         strcpy(s_mode, "off");
         ESP_LOGI(TAG, "off");
     }
+
+    /* Keep the WiFi modem clock steady. The default WIFI_PS_MIN_MODEM power-save,
+     * combined with DFS (CONFIG_PM_ENABLE), stalls the LCD SPI flush completion the
+     * moment STA associates and blanks the display while the rest of the system keeps
+     * running. Disabling power-save costs a little idle current, which is fine since
+     * WiFi is used on USB power. */
+    if (s_started) esp_wifi_set_ps(WIFI_PS_NONE);
     return ESP_OK;
 }
 
