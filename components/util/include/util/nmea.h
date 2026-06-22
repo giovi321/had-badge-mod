@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-typedef enum { NMEA_NONE = 0, NMEA_RMC, NMEA_GGA } nmea_kind_t;
+typedef enum { NMEA_NONE = 0, NMEA_RMC, NMEA_GGA, NMEA_GSV } nmea_kind_t;
 
 typedef struct {
     nmea_kind_t kind;
@@ -17,8 +17,10 @@ typedef struct {
     bool has_track;
     double track;          /* degrees true (RMC) */
     int32_t alt;           /* metres (GGA) */
-    int sats;              /* GGA */
-    int quality;           /* GGA fix quality */
+    int sats;              /* satellites used in fix (GGA) */
+    int quality;           /* GGA fix quality (0 none, 1 GPS, 2 DGPS, ...) */
+    double hdop;           /* horizontal dilution of precision (GGA) */
+    int sats_in_view;      /* satellites in view (GSV) */
     uint32_t ts;           /* unix seconds (RMC) */
     bool has_datetime;
     int year, mon, day, hh, mm, ss;

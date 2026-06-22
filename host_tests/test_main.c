@@ -22,6 +22,7 @@ SUITE_DECL(run_settings);
 SUITE_DECL(run_settings_json);
 SUITE_DECL(run_nodedb);
 SUITE_DECL(run_nmea);
+SUITE_DECL(run_gps);
 SUITE_DECL(run_geo);
 SUITE_DECL(run_radar);
 SUITE_DECL(run_map);
@@ -43,6 +44,7 @@ int main(void)
     RUN(run_settings_json);
     RUN(run_nodedb);
     RUN(run_nmea);
+    RUN(run_gps);
     RUN(run_geo);
     RUN(run_radar);
     RUN(run_map);

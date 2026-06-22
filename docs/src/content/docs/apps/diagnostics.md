@@ -24,8 +24,13 @@ channel or key, and if Heard is also zero check the region and frequency against
 
 ## GPS
 
-- Fix: whether there is a fix and the satellite count.
+- Fix: the GPS state — `off` when disabled in Settings, `no data` when the receiver is enabled
+  but nothing is arriving over the UART (check wiring), `searching` when sentences are coming in
+  but there is no lock yet, or `fix` with the used/in-view satellite counts and HDOP once locked.
 - Pos: the current latitude and longitude.
+- Data: NMEA sentences parsed and how long since the last byte. This is the quickest way to tell
+  whether the module is talking at all — if it stays at `0 sent, none yet`, the receiver is wired
+  wrong, unpowered, or disabled.
 
 ## WiFi
 

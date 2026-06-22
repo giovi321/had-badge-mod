@@ -4,6 +4,7 @@
 
 #define RMC_BODY "GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A"
 #define GGA_BODY "GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47"
+#define GSV_BODY "GPGSV,3,1,11,03,03,111,00,04,15,270,00,06,01,010,00,13,06,292,00*74"
 
 static nmea_kind_t g_kinds[8];
 static int g_nkinds;
@@ -34,6 +35,14 @@ void run_nmea(void)
     CHECK(r.valid);
     CHECK_EQI(r.alt, 545);
     CHECK_EQI(r.sats, 8);
+    CHECK_EQI(r.quality, 1);
+    CHECK_NEAR(r.hdop, 0.9, 1e-6);
+
+    SUITE("nmea/gsv");
+    CHECK(nmea_parse_sentence(GSV_BODY, &r));
+    CHECK_EQI(r.kind, NMEA_GSV);
+    CHECK(r.valid);
+    CHECK_EQI(r.sats_in_view, 11);
 
     SUITE("nmea/to-unix");
     CHECK_EQI(nmea_to_unix("010124", "000000"), 1704067200u); /* 2024-01-01T00:00:00Z */

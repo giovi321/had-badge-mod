@@ -124,8 +124,19 @@ bool nmea_parse_sentence(const char *sentence, nmea_result_t *out)
         out->has_lon = nmea_dm_to_deg(f[4], f[5][0], &out->lon);
         out->quality = f[6][0] ? atoi(f[6]) : 0;
         out->sats = f[7][0] ? atoi(f[7]) : 0;
+        out->hdop = f[8][0] ? atof(f[8]) : 0.0;
         out->alt = f[9][0] ? (int32_t)atof(f[9]) : 0;
         out->valid = (out->quality > 0) && out->has_lat && out->has_lon;
+        return true;
+    }
+    if (strcmp(kind, "GSV") == 0 && nf >= 4) {
+        /* Total satellites in view sits in field 3 and repeats on every GSV
+         * sentence of the burst, so reading any one is enough. Multi-constellation
+         * receivers emit GPGSV/GLGSV/... separately; we keep the most recent count
+         * as a coarse "how many sats can the antenna see" diagnostic. */
+        out->kind = NMEA_GSV;
+        out->sats_in_view = f[3][0] ? atoi(f[3]) : 0;
+        out->valid = true;
         return true;
     }
     return false;

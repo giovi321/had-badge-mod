@@ -31,6 +31,10 @@ place to change wiring.
 The display and radio sit on separate SPI hosts (the display on SPI2, the radio on SPI3),
 so they do not share a bus.
 
+The GPS header J6 is a 4-pin expansion connector, not fitted from the factory. Its pin order is
+3V3, IO11 (ESP TX), IO12 (ESP RX), GND. The IO12 pad is easily misread as "IO10"; GPIO10 is the
+LoRa antenna switch and is not on J6.
+
 The badge has no magnetometer and no real-time clock. The compass features derive heading
 from GPS course over ground, and the clock is set from the GPS time when a fix is available.
 

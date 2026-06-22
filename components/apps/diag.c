@@ -14,7 +14,9 @@
 #include "drivers/wifi.h"
 #include "drivers/battery.h"
 #include "ble/ble.h"
+#include "util/gps_state.h"
 
+#include <stdint.h>
 #include <stdio.h>
 #include "esp_timer.h"
 #include "esp_heap_caps.h"
@@ -22,7 +24,7 @@
 
 enum {
     R_NODE, R_RADIO, R_CHAN, R_RXTX, R_HEARD, R_SIG, R_PEERS,
-    R_GPS, R_GPS_POS,
+    R_GPS, R_GPS_POS, R_GPS_DATA,
     R_WIFI, R_WIFI_IP,
     R_BLE,
     R_BATT, R_SYS,
@@ -79,8 +81,9 @@ static void build(lv_obj_t **screen, lv_group_t *group)
     s_val[R_PEERS] = make_row(f.body, "Peers");
 
     make_header(f.body, "GPS");
-    s_val[R_GPS]     = make_row(f.body, "Fix");
-    s_val[R_GPS_POS] = make_row(f.body, "Pos");
+    s_val[R_GPS]      = make_row(f.body, "Fix");
+    s_val[R_GPS_POS]  = make_row(f.body, "Pos");
+    s_val[R_GPS_DATA] = make_row(f.body, "Data");
 
     make_header(f.body, "WIFI");
     s_val[R_WIFI]    = make_row(f.body, "State");
@@ -120,16 +123,39 @@ static void tick(void)
     lv_label_set_text(s_val[R_PEERS], b);
 
     /* --- GPS --- */
-    gps_fix_t fix;
-    bool havefix = gps_get_fix(&fix) && fix.valid;
-    if (havefix) {
-        snprintf(b, sizeof b, "fix, %d sats", fix.sats);
-        lv_label_set_text(s_val[R_GPS], b);
-        snprintf(b, sizeof b, "%.5f, %.5f", fix.lat, fix.lon);
-        lv_label_set_text(s_val[R_GPS_POS], b);
-    } else {
-        lv_label_set_text(s_val[R_GPS], "no fix");
+    gps_status_t gst;
+    gps_get_status(&gst);
+    gps_state_t gstate = gps_state_from(gst.running, gst.ms_since_data, gst.ms_since_fix, gst.fix.valid);
+    switch (gstate) {
+    case GPS_STATE_OFF:
+        lv_label_set_text(s_val[R_GPS], "off");
         lv_label_set_text(s_val[R_GPS_POS], "--");
+        break;
+    case GPS_STATE_NO_DATA:
+        lv_label_set_text(s_val[R_GPS], "no data");
+        lv_label_set_text(s_val[R_GPS_POS], "--");
+        break;
+    case GPS_STATE_SEARCHING:
+        lv_label_set_text(s_val[R_GPS], "searching");
+        lv_label_set_text(s_val[R_GPS_POS], "--");
+        break;
+    case GPS_STATE_FIX:
+        snprintf(b, sizeof b, "fix, %d/%d sats  HDOP %.1f",
+                 gst.fix.sats, gst.fix.sats_in_view, gst.fix.hdop);
+        lv_label_set_text(s_val[R_GPS], b);
+        snprintf(b, sizeof b, "%.5f, %.5f", gst.fix.lat, gst.fix.lon);
+        lv_label_set_text(s_val[R_GPS_POS], b);
+        break;
+    }
+    if (gstate == GPS_STATE_OFF) {
+        lv_label_set_text(s_val[R_GPS_DATA], "--");
+    } else if (gst.ms_since_data == UINT32_MAX) {
+        snprintf(b, sizeof b, "%lu sent, none yet", (unsigned long)gst.sentences);
+        lv_label_set_text(s_val[R_GPS_DATA], b);
+    } else {
+        snprintf(b, sizeof b, "%lu sent, %lus", (unsigned long)gst.sentences,
+                 (unsigned long)(gst.ms_since_data / 1000));
+        lv_label_set_text(s_val[R_GPS_DATA], b);
     }
 
     /* --- WiFi --- */

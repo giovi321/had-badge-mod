@@ -29,6 +29,7 @@ set(PORTABLE
     ${ROOT}/components/net/portable/dedup.c
     ${ROOT}/components/ui/portable/theme_map.c
     ${ROOT}/components/util/nmea.c
+    ${ROOT}/components/util/gps_state.c
     ${ROOT}/components/util/geo.c
     ${ROOT}/components/util/radar_proj.c
     ${ROOT}/components/util/map_proj.c
