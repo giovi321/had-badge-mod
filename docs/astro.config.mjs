@@ -32,6 +32,7 @@ export default defineConfig({
           label: 'Hardware',
           items: [
             { label: 'Board and pins', link: '/hardware/overview/' },
+            { label: 'Case and enclosure', link: '/hardware/case/' },
           ],
         },
         {

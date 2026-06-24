@@ -40,3 +40,9 @@ from GPS course over ground, and the clock is set from the GPS time when a fix i
 
 The battery sense pin is not confirmed on the stock board, so battery reporting is off by
 default. Set the ADC pin and divider in the firmware once you know the schematic value.
+
+## Case
+
+The `hardware/case/` folder has a 3D-printable case that adds a bay for the GPS module so you
+can carry the badge with the receiver attached. See [Case and enclosure](/had-badge-mod/hardware/case/)
+for the file and printing notes.

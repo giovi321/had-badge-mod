@@ -26,7 +26,8 @@ Documentation: <https://giovi321.github.io/had-badge-mod>
 | Keyboard | TCA8418 I2C matrix |
 | GPS (optional) | ATGM336H over UART on header J6 |
 
-Pins are in `components/bsp/include/board_pins.h`.
+Pins are in `components/bsp/include/board_pins.h`. A 3D-printable case with a bay for the GPS
+module is in [`hardware/case/`](hardware/case/).
 
 ## Build and flash
 
