@@ -56,6 +56,28 @@ The NV3007 driver runs its init sequence inside `lv_nv3007_create`, before any d
 data is set. The send callbacks must use the panel IO handle from a file-local variable that
 is set before the create call, not from LVGL user data.
 
+### The screen is solid white, but the board boots and the radio works
+
+The boot log is healthy — `display: NV3007 display up` prints, the keyboard and radio come up,
+the node announces — yet the panel stays a uniform lit white. If swapping the panel with a
+known-good badge moves nothing (the fault stays with the mainboard), the cause is usually
+**stale `nvs` left by the badge's previous firmware**, not hardware.
+
+A plain `idf.py flash` never erases the `nvs` partition, so settings written by the old
+firmware survive. They can be read back as out-of-spec values (the settings read path does not
+clamp integers to their schema range, only the write path does) and break the running firmware
+while the display init itself still reports success. A full chip erase clears it:
+
+```bash
+idf.py -p COM6 erase-flash
+idf.py -p COM6 flash monitor
+```
+
+Do this once when first flashing over the original firmware (see
+[Build and flash](/had-badge-mod/getting-started/building/)). If a confirmed-good panel is
+still white *after* a full erase and reflash, then suspect the hardware: reseat the display
+FPC and continuity-check the control lines RST (GPIO40), CS (41), DC (39), SCLK (38), MOSI (21).
+
 ### The image is upside down or mirrored
 
 Adjust the rotation in `components/drivers/display_nv3007.c`

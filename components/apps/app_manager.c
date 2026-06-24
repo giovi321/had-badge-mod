@@ -6,6 +6,7 @@
 #include "drivers/keyboard.h"
 
 #include "esp_log.h"
+#include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
@@ -215,5 +216,11 @@ static void ui_task(void *arg)
 
 void app_manager_start(void)
 {
-    xTaskCreatePinnedToCore(ui_task, "ui", 8192, NULL, 4, NULL, 1);
+    /* The UI task stack must be internal RAM (it runs NVS/flash writes, so a PSRAM
+     * stack would fault while the cache is disabled). If WiFi has eaten internal
+     * RAM and this allocation fails, the UI silently never renders -- so fail loud
+     * rather than boot to a blank screen with no clue why. */
+    if (xTaskCreatePinnedToCore(ui_task, "ui", 8192, NULL, 4, NULL, 1) != pdPASS)
+        ESP_LOGE(TAG, "UI task create failed (internal RAM low: %u free) -- screen will be blank",
+                 (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
 }

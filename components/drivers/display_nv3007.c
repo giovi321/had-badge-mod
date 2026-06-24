@@ -126,9 +126,11 @@ esp_err_t display_init(void)
     lv_nv3007_set_gap(s_disp, LCD_OFFSET_X, LCD_OFFSET_Y);
     lv_display_set_rotation(s_disp, LV_DISPLAY_ROTATION_90);
 
-    /* 5. Two partial draw buffers. Prefer internal DMA RAM; if it is too tight
-     * (BT stack plus LVGL pool eat most of it), fall back to PSRAM, which the
-     * S3 can still DMA from over SPI. The log shows what was available. */
+    /* 5. Two partial draw buffers in internal DMA RAM. They MUST be internal: the
+     * esp_lcd SPI path can only DMA directly from internal RAM, and a PSRAM buffer
+     * forces a per-transfer internal bounce buffer that fails to allocate once the
+     * WiFi stack is up. The internal headroom these need is freed by moving WiFi's
+     * static TX buffers to PSRAM (see wifi_init). */
     size_t buf_bytes = BUF_PX * 2;
     ESP_LOGI(TAG, "draw bufs %u B each; DMA-internal free %u, largest block %u",
              (unsigned)buf_bytes,
@@ -136,17 +138,12 @@ esp_err_t display_init(void)
              (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL));
     void *b1 = heap_caps_malloc(buf_bytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
     void *b2 = heap_caps_malloc(buf_bytes, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
-    if (!b1 || !b2) {
-        heap_caps_free(b1);
-        heap_caps_free(b2);
-        ESP_LOGW(TAG, "internal DMA buffers unavailable; using PSRAM");
-        b1 = heap_caps_malloc(buf_bytes, MALLOC_CAP_SPIRAM);
-        b2 = heap_caps_malloc(buf_bytes, MALLOC_CAP_SPIRAM);
-    }
-    if (!b1 || !b2) { ESP_LOGE(TAG, "draw buffer alloc"); return ESP_ERR_NO_MEM; }
+    if (!b1 || !b2) { heap_caps_free(b1); heap_caps_free(b2);
+        ESP_LOGE(TAG, "draw buffer alloc"); return ESP_ERR_NO_MEM; }
     lv_display_set_buffers(s_disp, b1, b2, buf_bytes, LV_DISPLAY_RENDER_MODE_PARTIAL);
 
-    ESP_LOGI(TAG, "NV3007 display up (428x142, rot270, gap 0/%d)", LCD_OFFSET_Y);
+    ESP_LOGI(TAG, "NV3007 display up (428x142, rot270, gap 0/%d, SPI %d MHz)",
+             LCD_OFFSET_Y, LCD_SPI_HZ / 1000000);
     return ESP_OK;
 }
 

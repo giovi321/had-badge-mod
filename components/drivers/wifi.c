@@ -46,6 +46,14 @@ void wifi_init(void)
     s_sta_netif = esp_netif_create_default_wifi_sta();
     s_ap_netif = esp_netif_create_default_wifi_ap();
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    /* Move the WiFi TX buffers out of internal DMA RAM: static TX buffers live in
+     * internal RAM (~25 KB here), which starves the display's internal draw buffers
+     * and the UI task's 8 KB stack and leaves the badge with a white screen. Dynamic
+     * TX buffers are allocated from PSRAM (CONFIG_SPIRAM_TRY_ALLOCATE_WIFI_LWIP), so
+     * this hands that internal RAM back to the display + UI. */
+    cfg.tx_buf_type = 1;            /* dynamic (PSRAM) instead of static (internal) */
+    cfg.static_tx_buf_num = 0;
+    cfg.dynamic_tx_buf_num = 32;
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
     esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, on_wifi, NULL, NULL);
     esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, on_wifi, NULL, NULL);

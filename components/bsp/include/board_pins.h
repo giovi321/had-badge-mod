@@ -12,7 +12,7 @@
 #define PIN_LCD_TE         42
 #define PIN_LCD_BACKLIGHT  2        /* PWM, active LOW */
 #define LCD_SPI_HOST       SPI2_HOST
-#define LCD_SPI_HZ         (80 * 1000 * 1000)
+#define LCD_SPI_HZ         (40 * 1000 * 1000)   /* SCLK/MOSI route via GPIO matrix (not SPI2 IOMUX), so 40 MHz is the reliable ceiling; 80 MHz is per-unit flaky */
 #define LCD_NATIVE_W       142
 #define LCD_NATIVE_H       428
 #define LCD_OFFSET_X       0

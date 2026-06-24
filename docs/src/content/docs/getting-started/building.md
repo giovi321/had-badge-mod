@@ -29,6 +29,22 @@ console so you can watch the boot log. Exit the monitor with `Ctrl+]`.
 If the badge does not enter download mode on its own, hold BOOT, tap RESET, and release
 BOOT, then run the command again.
 
+## First flash over the badge's original firmware
+
+The first time you flash a badge that shipped with other firmware (the original MicroPython
+image), erase the whole chip once before the normal flash:
+
+```bash
+idf.py -p COM12 erase-flash
+idf.py -p COM12 flash monitor
+```
+
+A plain `flash` only writes the bootloader, partition table, `otadata`, and the application
+slot; it leaves the `nvs`, `phy_init`, and storage partitions untouched. Stale `nvs` left by
+the previous firmware can be read back as out-of-spec settings and cause hard-to-diagnose
+misbehaviour — see [a solid white screen](/had-badge-mod/development/troubleshooting/) for the
+case seen in practice. `erase-flash` clears all of it. You only need to do this once per badge.
+
 ## Flash a build you already have
 
 `idf.py flash` reuses whatever is in `build/` if nothing changed, so it does not rebuild.
