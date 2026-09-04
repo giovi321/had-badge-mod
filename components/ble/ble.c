@@ -16,10 +16,13 @@
 #include "nimble/nimble_port.h"
 #include "nimble/nimble_port_freertos.h"
 #include "host/ble_hs.h"
+#include "host/ble_store.h"
 #include "host/util/util.h"
 #include "services/gap/ble_svc_gap.h"
 #include "services/gatt/ble_svc_gatt.h"
 #include "host/ble_att.h"
+
+void ble_store_config_init(void);
 
 static const char *TAG = "ble";
 
@@ -122,14 +125,25 @@ static void fill_self_user(meshtastic_NodeInfo *ni)
     snprintf(ni->user.short_name, sizeof ni->user.short_name, "%s", sn[0] ? sn : nm);
 }
 
+/* The phone app's handshake is two-stage: want_config_id 69420 asks for config
+ * only, 69421 for the node database only. A my_info frame during stage 2 resets
+ * the app's handshake state machine, which then rejects the stage-2 completion
+ * id ("config complete id mismatch") and never reports the radio as connected —
+ * so my_info and the channel are stage-1-only. Unknown ids (older single-stage
+ * clients) still get the full sequence. */
+#define APP_NODE_INFO_NONCE 69421u
+
 static void do_handshake(uint32_t config_id)
 {
     meshtastic_FromRadio fr;
+    bool node_list_only = (config_id == APP_NODE_INFO_NONCE);
 
-    fr = (meshtastic_FromRadio)meshtastic_FromRadio_init_zero;
-    fr.which_payload_variant = meshtastic_FromRadio_my_info_tag;
-    fr.payload_variant.my_info.my_node_num = net_my_node();
-    enqueue_fromradio(&fr);
+    if (!node_list_only) {
+        fr = (meshtastic_FromRadio)meshtastic_FromRadio_init_zero;
+        fr.which_payload_variant = meshtastic_FromRadio_my_info_tag;
+        fr.payload_variant.my_info.my_node_num = net_my_node();
+        enqueue_fromradio(&fr);
+    }
 
     /* self */
     fr = (meshtastic_FromRadio)meshtastic_FromRadio_init_zero;
@@ -167,14 +181,16 @@ static void do_handshake(uint32_t config_id)
     }
 
     /* primary channel */
-    fr = (meshtastic_FromRadio)meshtastic_FromRadio_init_zero;
-    fr.which_payload_variant = meshtastic_FromRadio_channel_tag;
-    fr.payload_variant.channel.index = 0;
-    fr.payload_variant.channel.role = 1; /* PRIMARY */
-    fr.payload_variant.channel.has_settings = true;
-    if (s_reg) settings_get_str(s_reg, "mesh_chan", fr.payload_variant.channel.settings.name,
-                                sizeof fr.payload_variant.channel.settings.name);
-    enqueue_fromradio(&fr);
+    if (!node_list_only) {
+        fr = (meshtastic_FromRadio)meshtastic_FromRadio_init_zero;
+        fr.which_payload_variant = meshtastic_FromRadio_channel_tag;
+        fr.payload_variant.channel.index = 0;
+        fr.payload_variant.channel.role = 1; /* PRIMARY */
+        fr.payload_variant.channel.has_settings = true;
+        if (s_reg) settings_get_str(s_reg, "mesh_chan", fr.payload_variant.channel.settings.name,
+                                    sizeof fr.payload_variant.channel.settings.name);
+        enqueue_fromradio(&fr);
+    }
 
     /* done */
     fr = (meshtastic_FromRadio)meshtastic_FromRadio_init_zero;
@@ -188,7 +204,11 @@ static void handle_toradio(const uint8_t *data, int len)
 {
     meshtastic_ToRadio tr = meshtastic_ToRadio_init_zero;
     pb_istream_t s = pb_istream_from_buffer(data, len);
-    if (!pb_decode(&s, meshtastic_ToRadio_fields, &tr)) return;
+    if (!pb_decode(&s, meshtastic_ToRadio_fields, &tr)) {
+        ESP_LOGW(TAG, "toradio decode failed (%d bytes): %s", len, PB_GET_ERROR(&s));
+        return;
+    }
+    ESP_LOGI(TAG, "toradio %d bytes, variant %d", len, (int)tr.which_payload_variant);
 
     if (tr.which_payload_variant == meshtastic_ToRadio_want_config_id_tag) {
         do_handshake(tr.payload_variant.want_config_id);
@@ -237,6 +257,7 @@ static int fromradio_access(uint16_t conn, uint16_t attr, struct ble_gatt_access
     uint8_t buf[FRAME_MAX];
     int len = fifo_pop(buf);
     if (len > 0) os_mbuf_append(ctxt->om, buf, len);
+    ESP_LOGI(TAG, "fromradio read -> %d bytes", len);
     return 0;
 }
 
@@ -252,10 +273,15 @@ static const struct ble_gatt_svc_def GATT_SVCS[] = {
         .type = BLE_GATT_SVC_TYPE_PRIMARY,
         .uuid = &SVC_UUID.u,
         .characteristics = (struct ble_gatt_chr_def[]){
-            { .uuid = &TORADIO_UUID.u, .access_cb = toradio_access, .flags = BLE_GATT_CHR_F_WRITE },
-            { .uuid = &FROMRADIO_UUID.u, .access_cb = fromradio_access, .flags = BLE_GATT_CHR_F_READ },
+            /* _ENC: the link must be encrypted (paired) before the API is usable, so a
+             * random passer-by can't read the node DB or inject packets. */
+            { .uuid = &TORADIO_UUID.u, .access_cb = toradio_access,
+              .flags = BLE_GATT_CHR_F_WRITE | BLE_GATT_CHR_F_WRITE_ENC },
+            { .uuid = &FROMRADIO_UUID.u, .access_cb = fromradio_access,
+              .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_ENC },
             { .uuid = &FROMNUM_UUID.u, .access_cb = fromnum_access,
-              .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_NOTIFY, .val_handle = &s_fromnum_handle },
+              .flags = BLE_GATT_CHR_F_READ | BLE_GATT_CHR_F_READ_ENC | BLE_GATT_CHR_F_NOTIFY,
+              .val_handle = &s_fromnum_handle },
             { 0 },
         },
     },
@@ -278,6 +304,22 @@ static int gap_event(struct ble_gap_event *event, void *arg)
     case BLE_GAP_EVENT_ADV_COMPLETE:
         start_advertising();
         break;
+    case BLE_GAP_EVENT_ENC_CHANGE:
+        ESP_LOGI(TAG, "link encryption %s (status %d)",
+                 event->enc_change.status == 0 ? "on" : "failed", event->enc_change.status);
+        break;
+    case BLE_GAP_EVENT_SUBSCRIBE:
+        ESP_LOGI(TAG, "subscribe attr %u notify=%d", event->subscribe.attr_handle,
+                 event->subscribe.cur_notify);
+        break;
+    case BLE_GAP_EVENT_REPEAT_PAIRING: {
+        /* The phone lost or replaced its keys (app reinstall, "forget device").
+         * Drop our stale bond and let it pair again instead of failing forever. */
+        struct ble_gap_conn_desc desc;
+        if (ble_gap_conn_find(event->repeat_pairing.conn_handle, &desc) == 0)
+            ble_store_util_delete_peer(&desc.peer_id_addr);
+        return BLE_GAP_REPEAT_PAIRING_RETRY;
+    }
     default:
         break;
     }
@@ -344,7 +386,12 @@ void ble_init(settings_t *reg, const char *device_short_name)
     settings_register_many(reg, BLE_SCHEMA, 1);
     if (!settings_get_bool(reg, "ble_enabled")) { ESP_LOGI(TAG, "BLE off"); return; }
 
-    snprintf(s_name, sizeof s_name, "%s", device_short_name && device_short_name[0] ? device_short_name : "Communicator");
+    /* Released Meshtastic phone apps hide scan results whose name doesn't end in
+     * "_XXXX" (hex), so the fallback must carry the node-id suffix to be visible. */
+    if (device_short_name && device_short_name[0])
+        snprintf(s_name, sizeof s_name, "%s", device_short_name);
+    else
+        snprintf(s_name, sizeof s_name, "Communicator_%04X", (unsigned)(net_my_node() & 0xffff));
     s_lock = xSemaphoreCreateMutex();
 
     if (nimble_port_init() != ESP_OK) { ESP_LOGE(TAG, "nimble init failed"); return; }
@@ -356,6 +403,18 @@ void ble_init(settings_t *reg, const char *device_short_name)
     ble_svc_gap_device_name_set(s_name);
     ble_att_set_preferred_mtu(247);            /* let the phone send full frames */
     ble_hs_cfg.sync_cb = on_sync;
+
+    /* Android's createBond() needs a security manager or pairing is rejected and
+     * the app drops the link. Just-works bonding with LE Secure Connections; keys
+     * persist in NVS (CONFIG_BT_NIMBLE_NVS_PERSIST) so a reboot doesn't orphan the
+     * phone's bond. Characteristics above require the encrypted link. */
+    ble_hs_cfg.sm_io_cap = BLE_SM_IO_CAP_NO_IO;
+    ble_hs_cfg.sm_bonding = 1;
+    ble_hs_cfg.sm_sc = 1;
+    ble_hs_cfg.sm_our_key_dist = BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
+    ble_hs_cfg.sm_their_key_dist = BLE_SM_PAIR_KEY_DIST_ENC | BLE_SM_PAIR_KEY_DIST_ID;
+    ble_hs_cfg.store_status_cb = ble_store_util_status_rr;
+    ble_store_config_init();
 
     /* The default event queue exists now; arm the host-task notify and only then
      * let the radio task start pushing received frames at us. */

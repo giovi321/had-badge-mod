@@ -1,11 +1,22 @@
 /* See ui/theme.h. */
 #include "ui/theme.h"
+#include "sdkconfig.h"
 
 lv_style_t st_card, st_card_sel, st_input, st_bubble_me, st_bubble_them, st_title, st_hint;
 static bool s_inited;
 
+#if CONFIG_BADGE_FONT_LATIN1
+/* Montserrat rebuilt with the Latin-1 supplement (0xA0-0xFF) so accented
+ * Western European text renders; LVGL's built-in fonts are ASCII-only. The
+ * FontAwesome LV_SYMBOL glyphs are merged in, same as the built-ins. */
+LV_FONT_DECLARE(lv_font_montserrat_latin1_14)
+LV_FONT_DECLARE(lv_font_montserrat_latin1_18)
+const lv_font_t *theme_font_body(void)  { return &lv_font_montserrat_latin1_14; }
+const lv_font_t *theme_font_title(void) { return &lv_font_montserrat_latin1_18; }
+#else
 const lv_font_t *theme_font_body(void)  { return &lv_font_montserrat_14; }
 const lv_font_t *theme_font_title(void) { return &lv_font_montserrat_18; }
+#endif
 
 void theme_init(void)
 {
@@ -74,6 +85,11 @@ void theme_init(void)
                                                true /* dark */, theme_font_body());
         lv_display_set_theme(disp, th);
     }
+
+    /* Widgets on the top layer (message toast, sidebar, menubar) sit outside the
+     * app screens and would otherwise fall back to LV_FONT_DEFAULT, which is the
+     * ASCII-only built-in — non-ASCII text in a toast rendered as blanks. */
+    lv_obj_set_style_text_font(lv_layer_top(), theme_font_body(), 0);
 }
 
 lv_obj_t *theme_screen_create(void)

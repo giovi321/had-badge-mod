@@ -45,6 +45,20 @@ CONFIG_LV_FONT_DEFAULT_MONTSERRAT_14=y
 # --- Bluetooth (NimBLE, for the Meshtastic companion; runtime-gated) -------
 CONFIG_BT_ENABLED=y
 CONFIG_BT_NIMBLE_ENABLED=y
+# With BLE enabled the stock config exhausts internal RAM: the BT controller +
+# NimBLE host leave so little that the UI task (whose stack must stay internal,
+# see app_manager_start) cannot be created and the screen stays blank. Move the
+# NimBLE host heap to PSRAM and trim roles/links the badge never uses: it is a
+# peripheral serving exactly one phone.
+CONFIG_BT_NIMBLE_MEM_ALLOC_MODE_EXTERNAL=y
+CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
+CONFIG_BT_NIMBLE_ROLE_CENTRAL=n
+CONFIG_BT_NIMBLE_ROLE_OBSERVER=n
+CONFIG_BT_CTRL_BLE_MAX_ACT=2
+# Bonding: Android createBond() requires a working security manager, and the
+# bond keys must survive a reboot or the phone's stored bond goes stale.
+CONFIG_BT_NIMBLE_NVS_PERSIST=y
+CONFIG_BT_NIMBLE_SM_SC=y
 
 # --- Misc -----------------------------------------------------------------
 CONFIG_COMPILER_OPTIMIZATION_PERF=y

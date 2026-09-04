@@ -1,0 +1,15 @@
+menu "Badge UI"
+
+config BADGE_FONT_LATIN1
+    bool "Latin-1 (Western European) text support"
+    default y
+    help
+        Build the UI fonts with the Latin-1 supplement (U+00A0..U+00FF) so
+        accented Western European text — Icelandic, German, French, the
+        Nordic languages and more — renders in messages, node names and
+        the rest of the UI. Costs roughly 100 KB of flash.
+
+        When disabled, LVGL's built-in ASCII-only Montserrat fonts are
+        used and accented characters render as blanks.
+
+endmenu
